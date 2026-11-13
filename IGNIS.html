@@ -1,0 +1,1647 @@
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+    <title>IGNIS</title>
+    <link rel="icon" href="./assets/logo.png">
+</head>
+<body>
+    <div id="contadorObjetos" style="
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        padding: 15px 20px;
+        color: white;
+        background: rgba(20, 10, 25, 0.85);
+        border: 2px solid #a77bff;
+        border-radius: 12px;
+        font-family: Arial, sans-serif;
+        z-index: 10;">
+        Objetos encontrados: 0 / 5
+        <br>
+        <span id="mensajeObjeto">Busca los objetos de IGNIS</span>
+    </div>
+    
+<canvas id="myCanvas">
+    <!--El elemento HTML canvas se puede utilizar para dibujar gráficos a través de 
+        secuencias de comandos (por lo general JavaScript ).-->
+</canvas>
+
+
+<!-- script type="importmap" importa las librerías necesarias para three.js-->
+<script type="importmap"> 
+
+    {
+        "imports":{
+            "three": "./js/three.module.js",
+            "three/OrbitControls": "./js/OrbitControls.js",
+            "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@latest/dist/cannon-es.js",
+            "cannon-debugger":"https://github.com/pmndrs/cannon-es-debugger/blob/master/dist/cannon-es-debugger.js"
+        }
+}
+</script>
+<script type="module"> 
+//🗃️🗃️ Mandar llamar a la librería
+    import * as THREE from 'three'; 
+    import {OrbitControls} from 'three/OrbitControls';
+    console.log(OrbitControls);
+
+    import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@latest/dist/cannon-es.js';
+    import CannonDebugger from './js/cannon-es-debugger.js';
+
+    import Stella from './js/Stella.js';
+    import Vesper from './js/Vesper.js';
+    import Ellowen from './js/Ellowen.js';
+
+
+//🕹️🕹️ Renderer - Realiza una conexión entre el código y el canvas
+    var renderer = new THREE.WebGLRenderer({
+    canvas: document.getElementById('myCanvas'), antialias: true,
+    });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x17134D);
+
+
+// 🎬 Creando nueva escena - Es el espacio donde se colocan los objetos
+    var scene = new THREE.Scene();
+
+    // PERSONAJE SEGUN LA SELECCION
+    var personajeJugador = new THREE.Group();
+
+    var personajeSeleccionado = localStorage.getItem("personajeSeleccionado");
+    var personaje;
+
+    if (personajeSeleccionado === "vesper") {
+        personaje = Vesper(0, 0, 0);
+    } else if (personajeSeleccionado === "ellowen") {
+        personaje = Ellowen(0, 0, 0);
+    } else {
+        personaje = Stella(0, 0, 0);
+    }
+
+    personajeJugador.add(personaje);
+    scene.add(personajeJugador);
+
+    // OBTENER LAS PIERNAS DEL PERSONAJE ELEGIDO
+    var piernas1 = personaje.userData.piernas1;
+    var piernas2 = personaje.userData.piernas2;
+
+
+    var reloj = new THREE.Clock();
+    var velocidad = 7;
+    var amplitud = 0.30;
+
+
+    // MUNDO DE FISICA
+    const world = new CANNON.World();
+
+    world.broadphase = new CANNON.SAPBroadphase(world);
+    world.gravity.set(0, -100, 0);
+    world.defaultContactMaterial.friction = 0;
+
+    const groundMaterial = new CANNON.Material("groundMaterial");
+
+    const wheelMaterial = new CANNON.Material("wheelMaterial");
+    const wheelGroundMaterial = new CANNON.ContactMaterial(
+    wheelMaterial, groundMaterial,{
+    friction: 0.3,
+    restitution: 0,
+    contactEquationStiffness: 1000
+    });
+
+    world.addContactMaterial(wheelGroundMaterial);
+    //const cannonDebug = new CannonDebugger(scene, world); 
+
+    const groundBody = new CANNON.Body({
+        type: CANNON.Body.STATIC,
+        shape: new CANNON.Plane()
+    });
+
+    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+    groundBody.position.y = 0;
+
+    world.addBody(groundBody);
+
+//🎥🎥 Agregar una cámara de perspectiva
+    var camera = new THREE.PerspectiveCamera(75,window.innerWidth / window.innerHeight,5,10000);
+    scene.add(camera);
+
+    // Evento para redimensionar el canvas
+    // Sizes: Objeto donde se toman los tamaños interiores 'inner' de la ventana.
+    const sizes = {
+    width: window.innerWidth,
+    height: window.innerHeight,};
+    // Tomando el 'canvas' mediante el id 'myCanvas' del HTML para cambiar sus dimensiones
+    const canvas = document.getElementById('myCanvas');
+    // Evento que se ejecutará al redimensionar 'resize' nuestra ventana
+    window.addEventListener('resize', () => {
+    // Actualizando los valores del objeto 'sizes' con las medidas internas de laventana
+    sizes.width = window.innerWidth;
+    sizes.height = window.innerHeight;
+    // Actualización de los valores en la cámara como la relación-aspecto y la
+    //matriz de proyección.
+    camera.aspect = sizes.width / sizes.height;
+    camera.updateProjectionMatrix();
+    // Aplicando al render el nuevo tamaño del 'viewport'
+    renderer.setSize(sizes.width, sizes.height);
+    });
+
+        const gridHelper = new THREE.GridHelper( 50, 10 );
+        const axesHelper = new THREE.AxesHelper( 50 );
+
+    // COLISIONADOR DEL PERSONAJE
+    const stellaShape = new CANNON.Cylinder(50, 50, 300, 15);
+
+    const stellaBody = new CANNON.Body({
+        mass: 1,
+        material: groundMaterial,
+        position: new CANNON.Vec3(-2500, 15, 0)
+    });
+
+    // COLOCAR EL CILINDRO A LA ALTURA DEL PERSONAJE
+    stellaBody.addShape(
+        stellaShape,
+        new CANNON.Vec3(0,180,0)
+    );
+
+    world.addBody(stellaBody);
+
+    stellaBody.addEventListener('collide', function(event) {
+        var contact = event.contact;
+
+        if (!contact || !contact.ni) return;
+
+        var normal = contact.ni;
+
+        if (contact.bi.id === stellaBody.id) {
+            normal = normal.scale(-1);
+        }
+
+        if (normal.y > 0.5) {
+            puedeSaltar = true;
+        }
+    });
+
+    // MOVIMIENTO DEL PERSONAJE
+    const moveSpeed = 150;
+    const rotar = 5;
+    const keys = {};
+
+    window.addEventListener('keydown', function(event) {
+        if (event.code === 'Space') {event.preventDefault();
+    }
+        keys[event.code] = true;
+    });
+
+    window.addEventListener('keyup', function(event) {
+        keys[event.code] = false;
+    });
+
+    const acelerar = 15;
+    const desacelerar = 10;
+
+    let currentSpeed = 0;
+    let puedeSaltar = false;
+    const saltoF = 100;
+
+    // ANIMACION DE MOVIMIENTO
+    function animate() {
+        var forward = new THREE.Vector3(0, 0, -1);
+
+        personajeJugador.getWorldDirection(forward);
+        forward.normalize();
+
+        // CAMINAR HACIA ADELANTE
+        if (keys['KeyW']) {
+            currentSpeed = Math.min(currentSpeed + acelerar, moveSpeed);
+
+            piernas1.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 2)) * amplitud;
+
+            piernas2.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 2)) * -amplitud;
+        }
+
+        // CAMINAR HACIA ATRÁS
+        else if (keys['KeyS']) {
+            currentSpeed = Math.max(currentSpeed - acelerar, -moveSpeed);
+
+            piernas1.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 2)) * -amplitud;
+
+            piernas2.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 2)) * amplitud;
+        }
+
+        // DETENER ANIMACIÓN DE LAS PIERNAS
+        else {
+            piernas1.rotation.x = 0;
+            piernas2.rotation.x = 0;
+
+            if (currentSpeed > 0) {
+                currentSpeed = Math.max(currentSpeed - desacelerar, 0);
+            } else if (currentSpeed < 0) {
+                currentSpeed = Math.min(currentSpeed + desacelerar, 0);
+            }
+        }
+
+        // MOVIMIENTO FÍSICO
+        stellaBody.velocity.set(
+            forward.x * currentSpeed,
+            stellaBody.velocity.y,
+            forward.z * currentSpeed
+        );
+
+        // GIRAR
+        if (keys['KeyA']) {
+            stellaBody.angularVelocity.y = rotar;
+        } else if (keys['KeyD']) {
+            stellaBody.angularVelocity.y = -rotar;
+        } else {
+            stellaBody.angularVelocity.y = 0;
+        }
+
+        // SALTAR CON ESPACIO
+        if (keys['Space'] && puedeSaltar) {
+            stellaBody.velocity.y = saltoF;
+            puedeSaltar = false;
+        }
+
+        stellaBody.angularVelocity.x = 0;
+        stellaBody.angularVelocity.z = 0;
+
+        stellaBody.quaternion.x = 0;
+        stellaBody.quaternion.z = 0;
+
+        // ACTUALIZAR POSICIÓN DEL PERSONAJE
+        personajeJugador.position.copy(stellaBody.position);
+        personajeJugador.quaternion.copy(stellaBody.quaternion);
+
+        //cannonDebug.update();
+    }
+
+
+    // SINCRONIZstellaBody.addEventListenerAR FISICA Y GRAFICO
+    function FisicasAlGrafico() {
+    personajeJugador.position.set(
+        stellaBody.position.x,
+        stellaBody.position.y +5,
+        stellaBody.position.z
+    );
+
+    personajeJugador.quaternion.copy(stellaBody.quaternion);
+    }
+
+
+
+//LUCES 
+    var light1 = new THREE.AmbientLight(0x5BF5C2,0.9);
+    light1.position.set(300,60,-500);
+    scene.add(light1);
+
+//SUELO 
+    var base = new THREE.BoxGeometry(6000,0,5000);
+    var textura1= new THREE.TextureLoader().load("./assets/musgo2.png");
+    var colorbase = new THREE.MeshLambertMaterial({map:textura1});
+    var suelo = new THREE.Mesh(base,colorbase);
+    scene.add(suelo); 
+    suelo.receiveShadow=true;
+
+// HONGO GIGANTE - TALLO
+var tallogeo = new THREE.CylinderGeometry(180,250,650,7);
+var colortallo = new THREE.MeshLambertMaterial({color:0x1F1209});
+var tallo = new THREE.Mesh(tallogeo,colortallo);
+tallo.scale.set(1,1,1);
+tallo.position.set(0,325,0);
+//scene.add(tallo);
+
+// SOMBRERO DEL HONGO
+var sombrerogeo = new THREE.SphereGeometry(1,8,6);
+var texturahongo= new THREE.TextureLoader().load("./assets/hongo.jpg");
+var colorsombrero = new THREE.MeshLambertMaterial({map:texturahongo});
+var sombrero = new THREE.Mesh(sombrerogeo,colorsombrero);
+sombrero.scale.set(600,250,600);
+sombrero.position.set(0,750,0);
+//scene.add(sombrero);
+
+// PARTE INFERIOR DEL SOMBRERO
+var basegeo = new THREE.CylinderGeometry(600,300,200,8);
+var colorbase = new THREE.MeshLambertMaterial({color:0x16EEF5});
+var base = new THREE.Mesh(basegeo,colorbase);
+base.position.set(0,600,0);
+//scene.add(base);
+
+//AGRUPAR HONGO
+var hongo= new THREE.Group();
+hongo.add(tallo,sombrero,base);
+hongo.position.set(-500,0,-1000);
+hongo.scale.set(0.5,0.5,0.5);
+scene.add(hongo);  
+
+//CLONAR HONGO
+var hongo1= hongo.clone();
+hongo1.position.set(-500,-150,1500);
+hongo1.rotation.set(0,-1,0);
+hongo1.scale.set(1,1,1);
+scene.add(hongo1);
+
+//CLONAR HONGO
+var hongo2= hongo.clone();
+hongo2.position.set(-500,0,1900);;
+hongo2.scale.set(0.3,0.3,0.3);
+scene.add(hongo2);
+
+//CLONAR HONGO
+var hongo3= hongo.clone();
+hongo3.position.set(-500,0,-1250);
+hongo3.scale.set(0.3,0.3,0.3);
+scene.add(hongo3);
+
+//CLONAR HONGO
+var hongo4= hongo.clone();
+hongo4.position.set(1000,0,-1700);
+hongo4.scale.set(0.5,0.5,0.5);
+scene.add(hongo4);
+
+//CLONAR HONGO
+var hongo5= hongo.clone();
+hongo5.position.set(500,10,-1500);
+hongo5.scale.set(1.2,1.2,1.2);
+scene.add(hongo5);
+
+//CLONAR HONGO
+var hongo6= hongo.clone();
+hongo6.position.set(1100,10,2000);
+hongo6.scale.set(1.2,1.2,1.2);
+scene.add(hongo6);
+
+//CLONAR HONGO
+var hongo7= hongo.clone();
+hongo7.position.set(2200,10,-1200);
+hongo7.scale.set(0.5,0.5,0.5);
+scene.add(hongo7);
+
+//CLONAR HONGO
+var hongo8= hongo.clone();
+hongo8.position.set(2600,10,-1200);
+hongo8.scale.set(0.2,0.2,0.2);
+scene.add(hongo8);
+
+//CLONAR HONGO
+var hongo9= hongo.clone();
+hongo9.position.set(2000,10,-1200);
+hongo9.scale.set(0.2,0.2,0.2);
+scene.add(hongo9);
+
+//CLONAR HONGO
+var hongo10= hongo.clone();
+hongo10.position.set(2000,10,-900);
+hongo10.scale.set(0.4,0.4,0.4);
+scene.add(hongo10);
+
+//CLONAR HONGO
+var hongo11= hongo.clone();
+hongo11.position.set(-2000,10,-1500);
+hongo11.scale.set(0.4,0.4,0.4);
+scene.add(hongo11);
+
+//CLONAR HONGO
+var hongo12= hongo.clone();
+hongo12.position.set(-2300,10,-1500);
+hongo12.scale.set(0.2,0.2,0.2);
+scene.add(hongo12);
+
+    function crearColisionHongo(grupo) {
+
+        var escala = grupo.scale.x;
+
+        // Crear cilindro de colisión
+        var formaHongo = new CANNON.Cylinder(
+            600 * escala,
+            200 * escala,
+            950 * escala,
+            12
+        );
+
+        // Crear cuerpo físico
+        var cuerpoHongo = new CANNON.Body({
+            mass: 0,
+            type: CANNON.Body.STATIC,
+            position: new CANNON.Vec3(
+                grupo.position.x,
+                grupo.position.y + (375 * escala),
+                grupo.position.z
+            )
+        });
+
+        cuerpoHongo.addShape(formaHongo);
+
+        // Agregar al mundo físico
+        world.addBody(cuerpoHongo);
+    }
+
+    // COLISIONES DE LOS HONGOS
+    crearColisionHongo(hongo);
+    crearColisionHongo(hongo1);
+    crearColisionHongo(hongo2);
+    crearColisionHongo(hongo3);
+    crearColisionHongo(hongo4);
+    crearColisionHongo(hongo5);
+    crearColisionHongo(hongo6);
+    crearColisionHongo(hongo7);
+    crearColisionHongo(hongo8);
+    crearColisionHongo(hongo9);
+    crearColisionHongo(hongo10);
+    crearColisionHongo(hongo11);
+    crearColisionHongo(hongo12);
+
+
+// TRONCO DEL ARBOL
+var troncogeo = new THREE.CylinderGeometry(100,180,550,7);
+var colortronco = new THREE.MeshLambertMaterial({color:0x542C70});
+var tronco = new THREE.Mesh(troncogeo,colortronco);
+tronco.position.set(0,315,0);
+tronco.rotation.z = 0.05;
+//scene.add(tronco);
+
+// RAMA IZQUIERDA
+var ramageo = new THREE.CylinderGeometry(35,75,300,6);
+var colorrama = new THREE.MeshLambertMaterial({color:0x63357A});
+var rama1 = new THREE.Mesh(ramageo,colorrama);
+rama1.position.set(-130,480,0);
+rama1.rotation.z = 0.8;
+//scene.add(rama1);
+
+// RAMA DERECHA
+var rama2 = new THREE.Mesh(ramageo,colorrama);
+rama2.position.set(130,480,0);
+rama2.rotation.z = -0.8;
+//scene.add(rama2);
+
+// RAMA SUPERIOR IZQUIERDA
+var rama3 = new THREE.Mesh(ramageo,colorrama);
+rama3.scale.set(0.8,1,0.8);
+rama3.position.set(-100,600,0);
+rama3.rotation.z = 0.45;
+//scene.add(rama3);
+
+// RAMA SUPERIOR DERECHA
+var rama4 = new THREE.Mesh(ramageo,colorrama);
+rama4.scale.set(0.8,1,0.8);
+rama4.position.set(100,600,0);
+rama4.rotation.z = -0.45;
+//scene.add(rama4);
+
+// COPA CENTRAL
+var copageo = new THREE.SphereGeometry(1,8,6);
+var colorcopa = new THREE.MeshLambertMaterial({color:0x132B4D});
+var copa1 = new THREE.Mesh(copageo,colorcopa);
+copa1.scale.set(260,230,220);
+copa1.position.set(0,780,0);
+//scene.add(copa1);
+
+// COPA SUPERIOR
+var copa2 = new THREE.Mesh(copageo,colorcopa);
+copa2.scale.set(200,200,190);
+copa2.position.set(0,920,0);
+//scene.add(copa2);
+
+// COPA IZQUIERDA
+var copa3 = new THREE.Mesh(copageo,colorcopa);
+copa3.scale.set(190,170,180);
+copa3.position.set(-210,820,0);
+//scene.add(copa3);
+
+// COPA DERECHA
+var copa4 = new THREE.Mesh(copageo,colorcopa);
+copa4.scale.set(190,170,180);
+copa4.position.set(210,820,0);
+//scene.add(copa4);
+
+// COPA ROSA CENTRAL
+var florgeo = new THREE.SphereGeometry(1,8,6);
+var colorflor = new THREE.MeshLambertMaterial({color:0x16A66A});
+var flor1 = new THREE.Mesh(florgeo,colorflor);
+flor1.scale.set(170,150,100);
+flor1.position.set(0,750,150);
+//scene.add(flor1);
+
+// COPA ROSA IZQUIERDA
+var flor2 = new THREE.Mesh(florgeo,colorflor);
+flor2.scale.set(120,120,90);
+flor2.position.set(-230,740,120);
+//scene.add(flor2);
+
+// COPA ROSA DERECHA
+var flor3 = new THREE.Mesh(florgeo,colorflor);
+flor3.scale.set(120,120,90);
+flor3.position.set(230,740,120);
+//scene.add(flor3);
+
+// BRILLO ROSA INFERIOR
+var flor4 = new THREE.Mesh(florgeo,colorflor);
+flor4.scale.set(100,70,80);
+flor4.position.set(0,650,140);
+//scene.add(flor4);
+
+//AGRUPAR ARBOL
+var arbol= new THREE.Group();
+arbol.add(tronco,rama1,rama2,rama3,rama4,copa1,copa2,copa3,copa4,flor1,
+flor2,flor3,flor4);
+arbol.position.set(-2000,0,-2000);
+arbol.rotation.set(0,-0.5,0);
+scene.add(arbol);  
+
+//CLONAR ARBOL
+var arbol1= arbol.clone();
+arbol1.position.set(2600,-150,-1200);
+arbol1.rotation.set(0,-1,0);
+arbol1.scale.set(1.5,1.5,1.5);
+scene.add(arbol1);
+
+//CLONAR ARBOL1.1
+var arbol2= arbol.clone();
+arbol2.position.set(2400,-150,-1700);
+arbol2.rotation.set(0,-0.5,0);
+arbol2.scale.set(1,1,1);
+scene.add(arbol2);
+
+//CLONAR ARBOL1.2
+var arbol3= arbol.clone();
+arbol3.position.set(2400,-150,-2100);
+arbol3.rotation.set(0,-0.5,0);
+arbol3.scale.set(1.7,1.7,1.7);
+scene.add(arbol3);
+
+//CLONAR ARBOL2
+var arbol4= arbol.clone();
+arbol4.position.set(2400,-150,2100);
+arbol4.rotation.set(0,-1.5,0);
+arbol4.scale.set(1.7,1.7,1.7);
+scene.add(arbol4);
+
+//CLONAR ARBOL2.1
+var arbol5= arbol.clone();
+arbol5.position.set(2400,-150,1700);
+arbol5.rotation.set(0,-2.5,0);
+arbol5.scale.set(1,1,1);
+scene.add(arbol5);
+
+//CLONAR ARBOL
+var arbol6= arbol.clone();
+arbol6.position.set(2600,-150,1200);
+arbol6.rotation.set(0,-1,0);
+arbol6.scale.set(1.5,1.5,1.5);
+scene.add(arbol6);
+
+//CLONAR ARBOL
+var arbol7= arbol.clone();
+arbol7.position.set(-2000,0,2000);
+arbol7.rotation.set(0,-1.5,0);
+arbol7.scale.set(1.5,1.5,1.5);
+scene.add(arbol7);
+
+//CLONAR ARBOL
+var arbol8= arbol.clone();
+arbol8.position.set(-2600,0,2100);
+arbol8.rotation.set(0,-0.5,0);
+arbol8.scale.set(1,1,1);
+scene.add(arbol8);
+
+//CLONAR ARBOL
+var arbol9= arbol.clone();
+arbol9.position.set(-2600,0,-2100);
+arbol9.rotation.set(0,-0.5,0);
+arbol9.scale.set(1.2,1.2,1.2);
+scene.add(arbol9);
+
+    function crearColisionArbol(grupo) {
+
+        var escala = grupo.scale.x;
+
+        // Crear cilindro de colisión
+        var formaArbol = new CANNON.Cylinder(
+            180 * escala,
+            180 * escala,
+            550 * escala,
+            12
+        );
+
+        // Crear cuerpo físico
+        var cuerpoArbol = new CANNON.Body({
+            mass: 0,
+            type: CANNON.Body.STATIC,
+            position: new CANNON.Vec3(
+                grupo.position.x,
+                grupo.position.y + (275 * escala),
+                grupo.position.z
+            )
+        });
+
+        // Agregar colisionador
+        cuerpoArbol.addShape(formaArbol);
+
+        // Agregar al mundo físico
+        world.addBody(cuerpoArbol);
+    }
+
+    // COLISIONES DE LOS ÁRBOLES
+    crearColisionArbol(arbol);
+    crearColisionArbol(arbol1);
+    crearColisionArbol(arbol2);
+    crearColisionArbol(arbol3);
+    crearColisionArbol(arbol4);
+    crearColisionArbol(arbol5);
+    crearColisionArbol(arbol6);
+    crearColisionArbol(arbol7);
+    crearColisionArbol(arbol8);
+    crearColisionArbol(arbol9);
+        
+
+
+// CRISTAL 
+var cristalgeo = new THREE.CylinderGeometry(0,180,650,5);
+var colorcristal = new THREE.MeshLambertMaterial({color:0x792DE2});
+var cristal = new THREE.Mesh(cristalgeo,colorcristal);
+cristal.scale.set(1,1,1);
+cristal.position.set(0,365,0);
+cristal.rotation.y = 0.3;
+//scene.add(cristal);
+
+// CRISTAL IZQUIERDO
+var cristal2geo = new THREE.CylinderGeometry(0,120,400,5);
+var colorcristal2 = new THREE.MeshLambertMaterial({color:0x6627C9});
+var cristal2 = new THREE.Mesh(cristal2geo,colorcristal2);
+cristal2.scale.set(1,1,1);
+cristal2.position.set(-210,230,30);
+cristal2.rotation.z = 0.25;
+cristal2.rotation.y = 0.4;
+//scene.add(cristal2);
+
+// CRISTAL DERECHO
+var cristal3geo = new THREE.CylinderGeometry(0,110,350,5);
+var colorcristal3 = new THREE.MeshLambertMaterial({color:0x873FE5});
+var cristal3 = new THREE.Mesh(cristal3geo,colorcristal3);
+cristal3.scale.set(1,1,1);
+cristal3.position.set(220,200,-20);
+cristal3.rotation.z = -0.3;
+cristal3.rotation.y = -0.3;
+//scene.add(cristal3);
+
+
+// CRISTAL FRONTAL
+var cristal4geo = new THREE.CylinderGeometry(0,75,230,5);
+var colorcristal4 = new THREE.MeshLambertMaterial({color:0xA04BEE});
+var cristal4 = new THREE.Mesh(cristal4geo,colorcristal4);
+cristal4.position.set(-100,130,180);
+cristal4.rotation.z = 0.2;
+//scene.add(cristal4);
+
+
+// CRISTAL LATERAL
+var cristal5geo = new THREE.CylinderGeometry(0,65,200,5);
+var colorcristal5 = new THREE.MeshLambertMaterial({color:0x5424A3});
+var cristal5 = new THREE.Mesh(cristal5geo,colorcristal5);
+cristal5.position.set(150,110,150);
+cristal5.rotation.z = -0.25;
+//scene.add(cristal5);
+
+
+// ROCA IZQUIERDA
+var rocageo = new THREE.DodecahedronGeometry(85,0);
+var colorroca = new THREE.MeshLambertMaterial({color:0x423D83});
+var roca1 = new THREE.Mesh(rocageo,colorroca);
+roca1.scale.set(1.3,0.6,1);
+roca1.position.set(-180,50,100);
+//scene.add(roca1);
+
+// ROCA DERECHA
+var roca2 = new THREE.Mesh(rocageo,colorroca);
+roca2.scale.set(1,0.7,1.2);
+roca2.position.set(170,45,80);
+//scene.add(roca2);
+
+// ROCA FRONTAL
+var roca3 = new THREE.Mesh(rocageo,colorroca);
+roca3.scale.set(0.8,0.5,0.8);
+roca3.position.set(0,35,210);
+//scene.add(roca3);
+
+//AGRUPAR CRISTAL
+var cristales= new THREE.Group();
+cristales.add(cristal,cristal2,cristal3,cristal4,cristal5,roca1,roca2,roca3
+);
+cristales.position.set(1000,0,1000);
+scene.add(cristales);  
+
+//CLONAR CRISTAL
+var cristales1= cristales.clone();
+cristales1.position.set(2200,0,-2000);
+cristales1.rotation.set(0,-1,0);
+cristales1.scale.set(1,1,1);
+scene.add(cristales1);
+
+//CLONAR CRISTAL
+var cristales2= cristales.clone();
+cristales2.position.set(2500,0,800);
+cristales2.rotation.set(0,-1.5,0);
+cristales2.scale.set(0.9,0.9,0.9);
+scene.add(cristales2);
+
+//CLONAR CRISTAL
+var cristales3= cristales.clone();
+cristales3.position.set(2500,0,-800);
+cristales3.rotation.set(0,-1.5,0);
+cristales3.scale.set(0.9,0.9,0.9);
+scene.add(cristales3);
+
+//CLONAR CRISTAL
+var cristales4= cristales.clone();
+cristales4.position.set(-1500,0,-1200);
+cristales4.rotation.set(0,-1.5,0);
+cristales4.scale.set(0.9,0.9,0.9);
+scene.add(cristales4);
+
+//CLONAR CRISTAL
+var cristales5= cristales.clone();
+cristales5.position.set(-1500,0,1500);
+cristales5.rotation.set(0,-1.5,0);
+cristales5.scale.set(0.9,0.9,0.9);
+scene.add(cristales5);
+
+//CLONAR CRISTAL
+var cristales6= cristales.clone();
+cristales6.position.set(-500,0,-2000);
+cristales6.rotation.set(0,-1.5,0);
+cristales6.scale.set(1,1,1);
+scene.add(cristales6);
+
+// ROCA GENERAL
+var rocag = new THREE.DodecahedronGeometry(85,0);
+var colorg = new THREE.MeshLambertMaterial({color:0x5C574E});
+var rocag1 = new THREE.Mesh(rocag,colorg);
+rocag1.scale.set(1.5,0.6,1.5);
+rocag1.position.set(-2650,50,-1000);
+
+// ROCA GENERAL
+var rocag1 = new THREE.DodecahedronGeometry(85,0);
+var colorg = new THREE.MeshLambertMaterial({color:0x261D0D});
+var rocag2 = new THREE.Mesh(rocag1,colorg);
+rocag2.scale.set(1.5,1.5,1.5);
+rocag2.position.set(-2600,50,-870);
+
+// ROCA GENERAL
+var rocag2 = new THREE.DodecahedronGeometry(85,0);
+var colorg = new THREE.MeshLambertMaterial({color:0x1A1817});
+var rocag3 = new THREE.Mesh(rocag2,colorg);
+rocag3.scale.set(1.7,1.7,1.7);
+rocag3.position.set(-2500,50,-1000);
+
+
+    // COLISIONES DE LOS CRISTALES
+    function crearColisionCristales(grupo) {
+
+        var escala = grupo.scale.x;
+
+        var formaCristales = new CANNON.Cylinder(
+            300 * escala,
+            300 * escala,
+            650 * escala,
+            12
+        );
+
+        var cuerpoCristales = new CANNON.Body({
+            mass: 0,
+            type: CANNON.Body.STATIC,
+            position: new CANNON.Vec3(
+                grupo.position.x,
+                grupo.position.y + (325 * escala),
+                grupo.position.z
+            )
+        });
+
+        cuerpoCristales.addShape(formaCristales);
+        world.addBody(cuerpoCristales);
+    }
+
+    crearColisionCristales(cristales);
+    crearColisionCristales(cristales1);
+    crearColisionCristales(cristales2);
+    crearColisionCristales(cristales3);
+    crearColisionCristales(cristales4);
+    crearColisionCristales(cristales5);
+    crearColisionCristales(cristales6);
+
+
+
+
+// CALABAZA MAGICA
+var calabazageo = new THREE.SphereGeometry(1,8,6);
+var colorcalabaza = new THREE.MeshLambertMaterial({color:0x380275});
+var calabaza = new THREE.Mesh(calabazageo,colorcalabaza);
+calabaza.scale.set(250,220,220);
+calabaza.position.set(1000,260,0);
+//scene.add(calabaza);
+
+// LOBULO IZQUIERDO
+var lobulogeo1 = new THREE.SphereGeometry(1,8,6);
+var colorlobulo = new THREE.MeshLambertMaterial({color:0x571A99});
+var lobulo1 = new THREE.Mesh(lobulogeo1,colorlobulo);
+lobulo1.scale.set(100,200,190);
+lobulo1.position.set(800,260,0);
+//scene.add(lobulo1);
+
+// LOBULO DERECHO
+var lobulo2 = new THREE.Mesh(lobulogeo1,colorlobulo);
+lobulo2.scale.set(100,200,190);
+lobulo2.position.set(1200,260,0);
+//scene.add(lobulo2);
+
+// LOBULO FRONTAL
+var lobulo3 = new THREE.Mesh(lobulogeo1,colorcalabaza);
+lobulo3.scale.set(200,190,100);
+lobulo3.position.set(1000,260,170);
+//scene.add(lobulo3);
+
+var lobulo4 = new THREE.Mesh(lobulogeo1,colorcalabaza);
+lobulo4.scale.set(200,190,100);
+lobulo4.position.set(1000,260,-170);
+//scene.add(lobulo4);
+
+// TALLO
+var tallogeo = new THREE.CylinderGeometry(35,55,100,5);
+var colortallo = new THREE.MeshLambertMaterial({color:0x4F783D});
+var tallo = new THREE.Mesh(tallogeo,colortallo);
+tallo.position.set(1000,475,0);
+tallo.rotation.z = -0.2;
+//scene.add(tallo);
+
+//AGRUPAR CALABAZA
+var calabazag= new THREE.Group();
+calabazag.add(calabaza,lobulo1,lobulo2,lobulo3,lobulo4,tallo);
+calabazag.scale.set(0.7,0.7,0.7);
+calabazag.position.set(-3500,-50,-1500);
+scene.add(calabazag); 
+
+//CLONAR CALABAZA
+var calabaza1= calabazag.clone();
+calabaza1.position.set(-2500,-50,1000);
+calabaza1.rotation.set(0,-1.5,0);
+calabaza1.scale.set(0.7,0.7,0.7);
+scene.add(calabaza1);
+
+//CLONAR CALABAZA
+var calabaza2= calabazag.clone();
+calabaza2.position.set(2000,-50,1000);
+calabaza2.rotation.set(0,-1.5,0);
+calabaza2.scale.set(0.7,0.7,0.7);
+scene.add(calabaza2);
+
+//CLONAR CALABAZA
+var calabaza3= calabazag.clone();
+calabaza3.position.set(1500,-50,-2000);
+calabaza3.rotation.set(0,-1.5,0);
+calabaza3.scale.set(0.7,0.7,0.7);
+scene.add(calabaza3);
+
+//CLONAR CALABAZA
+var calabaza4= calabazag.clone();
+calabaza4.position.set(-90,-50,-2000);
+calabaza4.rotation.set(0,-1.5,0);
+calabaza4.scale.set(1,1,1);
+scene.add(calabaza4);
+
+//CLONAR CALABAZA
+var calabaza5= calabazag.clone();
+calabaza5.position.set(50,-50,-2900);
+calabaza5.rotation.set(0,-1.5,0);
+calabaza5.scale.set(1,1,1);
+scene.add(calabaza5);
+
+//CLONAR CALABAZA
+var calabaza6= calabazag.clone();
+calabaza6.position.set(50,-50,1000);
+calabaza6.rotation.set(0,-1.5,0);
+calabaza6.scale.set(1,1,1);
+scene.add(calabaza6);
+    
+    // COLISIONES DE LAS CALABAZAS
+    function crearColisionCalabaza(grupo) {
+
+        grupo.updateMatrixWorld(true);
+
+        // Obtener la posición real del centro de la calabaza
+        var centroCalabaza = new THREE.Vector3(1000, 260, 0);
+        grupo.localToWorld(centroCalabaza);
+
+        var escala = grupo.scale.x;
+
+        var formaCalabaza = new CANNON.Cylinder(
+            280 * escala,
+            280 * escala,
+            350 * escala,
+            12
+        );
+
+        var cuerpoCalabaza = new CANNON.Body({
+            mass: 0,
+            type: CANNON.Body.STATIC,
+            position: new CANNON.Vec3(
+                centroCalabaza.x,
+                centroCalabaza.y,
+                centroCalabaza.z
+            )
+        });
+
+        cuerpoCalabaza.addShape(formaCalabaza);
+        world.addBody(cuerpoCalabaza);
+    }
+
+    crearColisionCalabaza(calabazag);
+    crearColisionCalabaza(calabaza1);
+    crearColisionCalabaza(calabaza2);
+    crearColisionCalabaza(calabaza3);
+    crearColisionCalabaza(calabaza4);
+    crearColisionCalabaza(calabaza5);
+    crearColisionCalabaza(calabaza6);
+
+
+//PORTAL
+var cuadrop = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/musgoroca.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop = new THREE.Mesh( cuadrop,texturaportal);
+cuadrop.rotation.set(-1.5,-1.5, 0);
+cuadrop.position.set(2600,15,-510);
+//scene.add(cuadrop);
+
+var cuadrop1 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop1 = new THREE.Mesh( cuadrop1,texturaportal);
+cuadrop1.rotation.set(-1.5,-1.5, 0);
+cuadrop1.position.set(2600,100,380);
+//scene.add(cuadrop1);
+
+var cuadrop2 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop2 = new THREE.Mesh( cuadrop2,texturaportal);
+cuadrop2.rotation.set(-1.5,-1.5, 0);
+cuadrop2.position.set(2600,250,380);
+//scene.add(cuadrop2);
+
+var cuadrop3 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop3 = new THREE.Mesh( cuadrop3,texturaportal);
+cuadrop3.rotation.set(-1.5,-1.5, 0);
+cuadrop3.position.set(2600,250,-510);
+//scene.add(cuadrop3);
+
+var cuadrop4 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop4 = new THREE.Mesh( cuadrop4,texturaportal);
+cuadrop4.rotation.set(-1.5,-1.5, 0);
+cuadrop4.position.set(2600,360,-510);
+//scene.add(cuadrop4);
+
+var cuadrop5 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop5 = new THREE.Mesh( cuadrop5,texturaportal);
+cuadrop5.rotation.set(-1.5,-1.5, 0);
+cuadrop5.position.set(2600,360,380);
+//scene.add(cuadrop5);
+
+var cuadrop6 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop6 = new THREE.Mesh( cuadrop6,texturaportal);
+cuadrop6.rotation.set(-1.5,-1.5, 0);
+cuadrop6.position.set(2600,460,-510);
+//scene.add(cuadrop6);
+
+var cuadrop7 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop7 = new THREE.Mesh( cuadrop7,texturaportal);
+cuadrop7.rotation.set(-1.5,-1.5, 0);
+cuadrop7.position.set(2600,460,380);
+//scene.add(cuadrop7); 
+
+var cuadrop8 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop8 = new THREE.Mesh( cuadrop8,texturaportal);
+cuadrop8.rotation.set(-1.5,-1.5, 0);
+cuadrop8.position.set(2600,560,-470);
+//scene.add(cuadrop8); 
+
+var cuadrop9 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop9= new THREE.Mesh( cuadrop9,texturaportal);
+cuadrop9.rotation.set(-1.5,-1.5, 0);
+cuadrop9.position.set(2600,560,330);
+//scene.add(cuadrop9); 
+
+var cuadrop10 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop10 = new THREE.Mesh( cuadrop10,texturaportal);
+cuadrop10.rotation.set(-1.5,-1.5, 0);
+cuadrop10.position.set(2600,660,-400);
+//scene.add(cuadrop10); 
+
+var cuadrop11 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop11= new THREE.Mesh( cuadrop11,texturaportal);
+cuadrop11.rotation.set(-1.5,-1.5, 0);
+cuadrop11.position.set(2600,660,280);
+//scene.add(cuadrop11);
+
+var cuadrop12 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop12 = new THREE.Mesh( cuadrop12,texturaportal);
+cuadrop12.rotation.set(-1.5,-1.5, 0);
+cuadrop12.position.set(2600,760,-300);
+//scene.add(cuadrop12); 
+
+var cuadrop13 = new THREE.BoxGeometry(150,250,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop13= new THREE.Mesh( cuadrop13,texturaportal);
+cuadrop13.rotation.set(-1.5,-1.5, 0);
+cuadrop13.position.set(2600,760,200);
+//scene.add(cuadrop13);
+
+var cuadrop14 = new THREE.BoxGeometry(190,450,100);
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop14= new THREE.Mesh( cuadrop14,texturaportal);
+cuadrop14.rotation.set(-1.5,-1.8, 0);
+cuadrop14.position.set(2600,860,-40);
+//scene.add(cuadrop14);
+
+var fondop= new THREE.BoxGeometry(650,50,850);
+var texturafondop= new THREE.TextureLoader().load("./assets/portal2.jpg");
+var texturafondoportal = new THREE.MeshLambertMaterial({map:texturafondop});
+var fondop= new THREE.Mesh( fondop, texturafondoportal);
+fondop.rotation.set(-1.5,0,-1.6);
+fondop.position.set(2600,400,-59);
+//scene.add(fondop);
+
+//AGRUPAR PORTAL
+var portal= new THREE.Group();
+portal.add(cuadrop,cuadrop1,cuadrop2,cuadrop3,cuadrop4,cuadrop5,cuadrop6,
+cuadrop7,cuadrop8,cuadrop9,cuadrop10,cuadrop11,cuadrop12,cuadrop13,cuadrop14,fondop
+);
+portal.position.set(0,300,25);
+scene.add(portal);  
+
+//ROCA HEXAGONAL 1
+var piedra1 = new THREE.CylinderGeometry(400, 400,100,6);
+var texturapiedra= new THREE.TextureLoader().load("./assets/musgoroca.jpg");
+var texturapiedra1 = new THREE.MeshLambertMaterial({map:texturapiedra});
+var piedra1 = new THREE.Mesh(piedra1, texturapiedra1);
+piedra1.scale.set(1.5,1.5,1.5);
+piedra1.position.set(2500,320,0);
+scene.add(piedra1);
+
+//ROCA HEXAGONAL 2
+var piedra2 = new THREE.CylinderGeometry(400, 400,100,6);
+var texturapiedra= new THREE.TextureLoader().load("./assets/musgoroca.jpg");
+var texturapiedra1 = new THREE.MeshLambertMaterial({map:texturapiedra});
+var piedra2 = new THREE.Mesh(piedra2, texturapiedra1);
+piedra2.scale.set(1.5,1.5,1.5);
+piedra2.position.set(2200,170,0);
+scene.add(piedra2);
+
+//ROCA HEXAGONAL 3
+var piedra3 = new THREE.CylinderGeometry(400, 400,100,6);
+var texturapiedra= new THREE.TextureLoader().load("./assets/musgoroca.jpg");
+var texturapiedra1 = new THREE.MeshLambertMaterial({map:texturapiedra});
+var piedra3 = new THREE.Mesh(piedra3, texturapiedra1);
+piedra3.scale.set(1.5,1.5,1.5);
+piedra3.position.set(1800,50,0);
+scene.add(piedra3);
+
+        // OBSTÁCULOS DEL PORTAL
+    const obstacles = [piedra1, piedra2, piedra3];
+    obstacles.forEach(obstacle => {
+
+        // Crear la forma física de un cilindro
+        const obstacleShape = new CANNON.Cylinder(
+            600, // Radio superior
+            650, // Radio inferior
+            180, // Altura
+            6    // Segmentos
+        );
+
+        // Crear el cuerpo físico estático
+        const obstacleBody = new CANNON.Body({
+            mass: 0,
+            type: CANNON.Body.STATIC
+        });
+
+        obstacleBody.addShape(obstacleShape);
+
+        // Igualar la posición de la piedra
+        obstacleBody.position.set(
+            obstacle.position.x,
+            obstacle.position.y,
+            obstacle.position.z
+        );
+
+        // Agregar el obstáculo al mundo físico
+        world.addBody(obstacleBody);
+
+    });
+
+//LUZ4🔦
+var punto4= new THREE.PointLight(0xA94AD9,0.5,0.5,2);
+punto4.position.set(2500,800,-300);
+scene.add(punto4);
+//DETERMINAR PUNTO
+var helper4= new THREE.PointLightHelper(punto4);
+//scene.add(helper4);
+
+//LUZ5🔦
+var punto5= new THREE.PointLight(0xA94AD9,0.5,0.5,2);
+punto5.position.set(2500,800,300);
+scene.add(punto5);
+//DETERMINAR PUNTO
+var helper5= new THREE.PointLightHelper(punto5);
+//scene.add(helper5);
+
+//LUZ5🔦
+var punto6= new THREE.PointLight(0xFFD16B,2,10,5);
+punto6.position.set(2000,1500,0);
+scene.add(punto6);
+//DETERMINAR PUNTO
+var helper6= new THREE.PointLightHelper(punto6);
+//scene.add(helper6);
+
+
+    //OBJETOS DE IGNIS
+
+    //HONGO
+    var esfera13 = new THREE.SphereGeometry(5, 20, 20);
+    var color13 = new THREE.MeshLambertMaterial({color: 0xCC3333});
+    var hongo1 = new THREE.Mesh(esfera13, color13);
+    scene.add(hongo1);
+    hongo1.position.set(0, 6, 0);
+    hongo1.scale.set(1.5, 0.95, 1.3);
+
+    var color14 = new THREE.MeshLambertMaterial({color: 0xF5CBC4});
+    var hongo2 = new THREE.Mesh(esfera13, color14);
+    scene.add(hongo2);
+    hongo2.position.set(0, 2, 0);
+    hongo2.scale.set(0.8, 0.1, 0.8);
+
+    var cilindro7 = new THREE.CylinderGeometry(3, 2, 3.5, 20);
+    var color15 = new THREE.MeshLambertMaterial({color: 0xFFFFFF});
+    var hongo3 = new THREE.Mesh(cilindro7, color15);
+    //scene.add(hongo3);
+    hongo3.position.set(0, 0, 0);
+
+    var esfera14 = new THREE.SphereGeometry(5,20,25);
+    var color16 = new THREE.MeshLambertMaterial({color: 0xFFFFFF});
+    var mancha1 = new THREE.Mesh(esfera14, color16);
+    //scene.add(mancha1);
+    mancha1.position.set(0, 10.5, 0);
+    mancha1.scale.set(0.25,0.15,0.25);
+
+    var mancha2 = new THREE.Mesh(esfera14, color16);
+    //scene.add(mancha2);
+    mancha2.position.set(5, 5, 3.5);
+    mancha2.scale.set(0.25,0.25,0.25);
+
+    var mancha3 = new THREE.Mesh(esfera14, color16);
+    //scene.add(mancha3);
+    mancha3.position.set(-5, 5, 3.5);
+    mancha3.scale.set(0.25,0.25,0.25);
+
+    var mancha4 = new THREE.Mesh(esfera14, color16);
+    //scene.add(mancha4);
+    mancha4.position.set(4, 5, -4.5);
+    mancha4.scale.set(0.25,0.25,0.25);
+
+    var mancha5 = new THREE.Mesh(esfera14, color16);
+    //scene.add(mancha5);
+    mancha5.position.set(-4, 5, -4.5);
+    mancha5.scale.set(0.25,0.25,0.25);
+
+    var mancha6 = new THREE.Mesh(esfera14, color16);
+    //scene.add(mancha6);
+    mancha6.position.set(0, 7, 5.5);
+    mancha6.scale.set(0.25,0.25,0.25);
+
+    var mancha7 = new THREE.Mesh(esfera14, color16);
+    //scene.add(mancha7);
+    mancha7.position.set(0, 7, -5.5);
+    mancha7.scale.set(0.25,0.25,0.25);
+
+    var mancha8 = new THREE.Mesh(esfera14, color16);
+    //scene.add(mancha8);
+    mancha8.position.set(6, 8, 0);
+    mancha8.scale.set(0.25,0.25,0.25);
+
+    var mancha9 = new THREE.Mesh(esfera14, color16);
+    //scene.add(mancha9);
+    mancha9.position.set(-6, 8, 0);
+    mancha9.scale.set(0.25,0.25,0.25);
+
+        //AGRUPAR HONGO
+        var hongoF = new THREE.Group();
+        hongoF.add(hongo1,hongo2,hongo3,mancha1,mancha2,mancha3,mancha4,mancha5,mancha6,mancha7,mancha8,mancha9); 
+        scene.add(hongoF);
+        hongoF.position.set(-1800, 100, -1200);
+        hongoF.scale.set(22,22,22);
+
+
+    //POCIÓN MAGICA
+    var esfera15 = new THREE.SphereGeometry(5.5, 20, 20);
+    var material4 = new THREE.MeshLambertMaterial({
+        color: 0x66CCFF,
+        transparent:true,
+        opacity:0.4});
+    var pocion1 = new THREE.Mesh(esfera15, material4);
+    scene.add(pocion1);
+    pocion1.position.set(0,0,0);
+    
+    var color17 = new THREE.MeshLambertMaterial({color: 0xAA44CC});
+    var pocion2 = new THREE.Mesh(esfera15, color17);
+    scene.add(pocion2);
+    pocion2.position.set(0,-1,0);
+    pocion2.scale.set(0.8,0.55,0.8);
+
+    var cilindro8 = new THREE.CylinderGeometry(1.8, 1.5, 3, 20);
+    var pocion3 = new THREE.Mesh(cilindro8, material4);
+    scene.add(pocion3);
+    pocion3.position.set(0,6.5,0);
+
+    var cilindro9 = new THREE.CylinderGeometry(1.8, 1.2, 3, 20);
+    var color18 = new THREE.MeshLambertMaterial({color: 0x996633});
+    var pocion4 = new THREE.Mesh(cilindro9, color18);
+    scene.add(pocion4);
+    pocion4.position.set(0,8.5,0);
+
+    var pocion5 = new THREE.Mesh(esfera15, material4);
+    scene.add(pocion5);
+    pocion5.position.set(0,-5.5,0);
+    pocion5.scale.set(0.4,0.1,0.4);
+
+        //AGRUPAR POCIÓN MAGICA
+        var pocionF = new THREE.Group();
+        pocionF.add(pocion1,pocion2,pocion3,pocion4,pocion5); 
+        scene.add(pocionF);
+        pocionF.position.set(-1500, 300, 800);
+        pocionF.scale.set(22,22,22);
+
+
+    //MONEDA
+    var cilindro = new THREE.CylinderGeometry(5, 5, 1, 20);
+    var color19 = new THREE.MeshLambertMaterial({color: 0xE5B82E});
+    var moneda1 = new THREE.Mesh(cilindro, color19);
+    //scene.add(moneda1);
+    moneda1.position.set(0,0,0);
+    moneda1.rotation.x = Math.PI / 2;
+
+    var torus2 = new THREE.TorusGeometry(8, 0.5, 10, 20);
+    var color20 = new THREE.MeshLambertMaterial({color: 0xCC8E14});
+    var moneda2 = new THREE.Mesh(torus2, color20);
+    //scene.add(moneda2);
+    moneda2.position.set(0,0,0.4);
+    moneda2.scale.set(0.5,0.5,0.5);
+
+    var moneda3 = new THREE.Mesh(torus2, color20);
+    //scene.add(moneda3);
+    moneda3.position.set(0,0,-0.4);
+    moneda3.scale.set(0.5,0.5,0.5);
+
+    var esfera16 = new THREE.SphereGeometry(5.5, 20, 20);
+    var color21 = new THREE.MeshLambertMaterial({color: 0x2DB027});
+    var trebol1 = new THREE.Mesh(esfera16, color21);
+    //scene.add(trebol1);
+    trebol1.position.set(0,1.8,0);
+    trebol1.scale.set(0.15,0.3,0.15);
+
+    var trebol2 = new THREE.Mesh(esfera16, color21);
+    //scene.add(trebol2);
+    trebol2.position.set(0,-1.8,0);
+    trebol2.scale.set(0.15,0.3,0.15);
+
+    var trebol3 = new THREE.Mesh(esfera16, color21);
+    //scene.add(trebol3);
+    trebol3.position.set(-1.8,0,0);
+    trebol3.scale.set(0.3,0.15,0.15);
+
+    var trebol4 = new THREE.Mesh(esfera16, color21);
+    //scene.add(trebol4);
+    trebol4.position.set(1.8,0,0);
+    trebol4.scale.set(0.3,0.15,0.15);
+
+        //AGRUPAR MONEDA
+        var monedaF = new THREE.Group();
+        monedaF.add(moneda1,moneda2,moneda3,trebol1,trebol2,trebol3,trebol4); 
+        scene.add(monedaF);
+        monedaF.position.set(0, 300, -500);
+        monedaF.scale.set(22,22,22);
+        monedaF.rotation.set(0,1.6,0);
+
+
+    //LIBRO
+    var caja5 = new THREE.BoxGeometry(8, 10, 0.4);
+    var color22 = new THREE.MeshLambertMaterial({color: 0x63161E});
+    var libro1 = new THREE.Mesh(caja5, color22);
+    //scene.add(libro1);
+    libro1.position.set(0, 0, 1);
+
+    var libro2 = new THREE.Mesh(caja5, color22);
+    //scene.add(libro2);
+    libro2.position.set(0, 0, -1);
+
+    var caja7 = new THREE.BoxGeometry(8, 10, 1.5);
+    var color23 = new THREE.MeshLambertMaterial({color: 0xDDCCAA});
+    var libro3 = new THREE.Mesh(caja7, color23);
+    //scene.add(libro3);
+    libro3.position.set(0, 0, 0);
+
+    var caja8 = new THREE.BoxGeometry(0.75, 10, 3);
+    var color24 = new THREE.MeshLambertMaterial({color: 0x442211});
+    var libro4 = new THREE.Mesh(caja8, color24);
+    //scene.add(libro4);
+    libro4.position.set(-4.35, 0, 0);
+
+    var esfera17 = new THREE.SphereGeometry(5,20,25);
+    var color25 = new THREE.MeshLambertMaterial({color: 0xB57538});
+    var hoja1 = new THREE.Mesh(esfera17, color25);
+    //scene.add(hoja1);
+    hoja1.position.set(0, 0.8, 1);
+    hoja1.scale.set(0.1,0.35,0.1);
+
+    var hoja2 = new THREE.Mesh(esfera17, color25);
+    //scene.add(hoja2);
+    hoja2.position.set(-1, -1, 1);
+    hoja2.scale.set(0.1,0.25,0.1);
+    hoja2.rotation.set(0,0,0.8);
+
+    var hoja3 = new THREE.Mesh(esfera17, color25);
+    //scene.add(hoja3);
+    hoja3.position.set(1, -1, 1);
+    hoja3.scale.set(0.1,0.25,0.1);
+    hoja3.rotation.set(0,0,-0.8);
+
+        //AGRUPAR LIBRO
+        var libroF = new THREE.Group();
+        libroF.add(libro1,libro2,libro3,libro4,hoja1,hoja2,hoja3); 
+        scene.add(libroF);
+        libroF.position.set(1000, 300, 1500);
+        libroF.scale.set(22,22,22)
+        libroF.rotation.set(0,-1.6,0);
+
+
+    //CALDERO DE LUZ 
+    var esfera18 = new THREE.SphereGeometry(8, 20, 20);
+    var color26 = new THREE.MeshLambertMaterial({color: 0x222222});
+    var caldero1 = new THREE.Mesh(esfera18, color26);
+    //scene.add(caldero1);
+    caldero1.position.set(0, 0, 0);
+    caldero1.scale.set(1, 0.7, 1);
+
+    var caldero2 = new THREE.Mesh(esfera18, color26);
+    //scene.add(caldero2);
+    caldero2.position.set(0, 4, 0);
+    caldero2.scale.set(1, 0.2, 1);
+
+    var torus3 = new THREE.TorusGeometry(5, 1.5, 5, 20);
+    var color27 = new THREE.MeshLambertMaterial({color: 0x111111});
+    var caldero3 = new THREE.Mesh(torus3, color27);
+    //scene.add(caldero3);
+    caldero3.position.set(8, 1, 0);
+    caldero3.scale.set(0.25,0.25,0.35);
+    caldero3.rotation.set(0,0,0.5);
+
+    var caldero4 = new THREE.Mesh(torus3, color27);
+    //scene.add(caldero4);
+    caldero4.position.set(-8, 1, 0);
+    caldero4.scale.set(0.25,0.25,0.35);
+    caldero4.rotation.set(0,0,0.5);
+
+    var esfera19 = new THREE.SphereGeometry(7, 20, 20);
+    var color28 = new THREE.MeshLambertMaterial({color: 0xD9AD14});
+    var caldero5 = new THREE.Mesh(esfera19, color28);
+    //scene.add(caldero5);
+    caldero5.position.set(0, 4.8, 0);
+    caldero5.scale.set(0.8, 0.2, 0.8);
+
+    var caldero6 = new THREE.Mesh(esfera19, color28);
+    //scene.add(caldero6);
+    caldero6.position.set(2, 10, 0);
+    caldero6.scale.set(0.15, 0.15, 0.15);
+
+    var caldero7 = new THREE.Mesh(esfera19, color28);
+    //scene.add(caldero7);
+    caldero7.position.set(-2, 8, 0);
+    caldero7.scale.set(0.15, 0.15, 0.15);
+
+        //AGRUPAR CALDERO
+        var calderoF = new THREE.Group();
+        calderoF.add(caldero1,caldero2,caldero3,caldero4,caldero5,caldero6,caldero7); 
+        scene.add(calderoF);
+        calderoF.position.set(1800, 300, -500);
+        calderoF.scale.set(22,22,22);
+
+
+    // RECOLECCIÓN DE OBJETOS
+    
+    // RECOLECCIÓN DE OBJETOS
+    var objetosRecolectados = 0;
+    var cambioDeMundo = false;
+
+    var hongoEncontrado = false;
+    var pocionEncontrada = false;
+    var monedaEncontrada = false;
+    var libroEncontrado = false;
+    var calderoEncontrado = false;
+
+    var objetoCercano = null;
+
+    var contadorHTML = document.getElementById("contadorObjetos");
+    var mensajeHTML = document.getElementById("mensajeObjeto");
+
+    // Detectar la distancia entre el personaje y un objeto
+    function distanciaObjeto(objeto) {
+        var diferenciaX = personajeJugador.position.x - objeto.position.x;
+        var diferenciaZ = personajeJugador.position.z - objeto.position.z;
+
+        return Math.sqrt(
+            diferenciaX * diferenciaX +
+            diferenciaZ * diferenciaZ
+        );
+    }
+
+    // Buscar un objeto cercano
+    function detectarObjetoCercano() {
+        objetoCercano = null;
+        var distanciaMenor = 250;
+
+        if (!hongoEncontrado && distanciaObjeto(hongoF) < distanciaMenor) {
+            objetoCercano = hongoF;
+            distanciaMenor = distanciaObjeto(hongoF);
+        }
+
+        if (!pocionEncontrada && distanciaObjeto(pocionF) < distanciaMenor) {
+            objetoCercano = pocionF;
+            distanciaMenor = distanciaObjeto(pocionF);
+        }
+
+        if (!monedaEncontrada && distanciaObjeto(monedaF) < distanciaMenor) {
+            objetoCercano = monedaF;
+            distanciaMenor = distanciaObjeto(monedaF);
+        }
+
+        if (!libroEncontrado && distanciaObjeto(libroF) < distanciaMenor) {
+            objetoCercano = libroF;
+            distanciaMenor = distanciaObjeto(libroF);
+        }
+
+        if (!calderoEncontrado && distanciaObjeto(calderoF) < distanciaMenor) {
+            objetoCercano = calderoF;
+            distanciaMenor = distanciaObjeto(calderoF);
+        }
+
+        if (objetoCercano !== null) {
+            mensajeHTML.textContent = "Presiona E para recoger el objeto";
+        } else if (objetosRecolectados < 5) {
+            mensajeHTML.textContent = "Busca los objetos de IGNIS";
+        }
+    }
+
+    // Recoger el objeto más cercano
+    function recogerObjeto() {
+        if (objetoCercano === null) {
+            return;
+        }
+
+        if (objetoCercano === hongoF) {
+            hongoEncontrado = true;
+        }
+
+        if (objetoCercano === pocionF) {
+            pocionEncontrada = true;
+        }
+
+        if (objetoCercano === monedaF) {
+            monedaEncontrada = true;
+        }
+
+        if (objetoCercano === libroF) {
+            libroEncontrado = true;
+        }
+
+        if (objetoCercano === calderoF) {
+            calderoEncontrado = true;
+        }
+
+        objetoCercano.visible = false;
+        objetosRecolectados++;
+
+        contadorHTML.innerHTML =
+            "Objetos encontrados: " + objetosRecolectados + " / 5" +
+            "<br><span id='mensajeObjeto'></span>";
+
+        mensajeHTML = document.getElementById("mensajeObjeto");
+
+        if (objetosRecolectados === 5) {
+            mensajeHTML.textContent =
+                "¡Encontraste todos los objetos de IGNIS! Ve al portal.";
+        } else {
+            mensajeHTML.textContent = "¡Objeto encontrado!";
+        }
+
+        objetoCercano = null;
+    }
+
+    // Recoger al presionar E
+    document.addEventListener("keydown", function(event) {
+        if (event.key.toLowerCase() === "e" && !event.repeat) {
+            recogerObjeto();
+        }
+    });
+
+    // Comprobar si el personaje llegó al portal
+    function comprobarPortal() {
+        if (
+            Math.abs(personajeJugador.position.x - 2600) < 120 &&
+            personajeJugador.position.z >= -500 &&
+            personajeJugador.position.z <= 420
+        ) {
+            if (objetosRecolectados === 5 && cambioDeMundo === false) {
+                cambioDeMundo = true;
+
+                mensajeHTML.textContent =
+                    "¡Portal activado! Viajando a AERYTH...";
+
+                window.location.href = "AERYTH.html";
+
+            } else if (
+                objetosRecolectados < 5 &&
+                objetoCercano === null
+            ) {
+                mensajeHTML.textContent =
+                    "Encuentra los 5 objetos para activar el portal.";
+            }
+        }
+    }
+
+
+    function seguirPersonaje() {
+        var posicionCamara = new THREE.Vector3(0,400,-500);
+
+        posicionCamara.applyQuaternion(personajeJugador.quaternion);
+        posicionCamara.add(personajeJugador.position);
+
+        camera.position.lerp(posicionCamara, 0.12);
+
+        camera.lookAt(
+            personajeJugador.position.x,
+            personajeJugador.position.y + 150,
+            personajeJugador.position.z
+        );
+    }
+
+
+
+//🎰🎰Rendering y animación
+    requestAnimationFrame(render);
+    function render() {
+        animate();
+        world.step(1 / 60);// Actualizar el mundo fisico
+        FisicasAlGrafico();// Sincronizar el personaje
+        seguirPersonaje();
+        detectarObjetoCercano();// Detectar objetos cercanos
+
+        comprobarPortal(); //Comprueba si llego al portal
+
+        //ROTACIÓN DE OBJETOS
+        hongoF.rotation.y += 0.03
+        pocionF.rotation.y += 0.03
+        monedaF.rotation.y += 0.03
+        libroF.rotation.y += 0.03
+        calderoF.rotation.y += 0.03
+  
+        //controls.update();
+
+        //Llamado para renderizar y volver a llamar a la misma función (render)
+        renderer.render(scene, camera);
+        requestAnimationFrame(render);
+    }
+</script>
+
+    <audio id="musicaFondo" autoplay loop preload="auto">
+        <source src="./audios/mundos.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        var musica = document.getElementById("musicaFondo");
+        musica.volume = 0.25;
+
+        // Intentar reproducir automáticamente
+        musica.play().catch(function() {
+            // Si el navegador lo bloquea, iniciar con el primer clic
+            document.addEventListener("click", function() {
+                musica.play();
+            }, { once: true });
+        });
+    </script>
+    
+</body>
+</html>

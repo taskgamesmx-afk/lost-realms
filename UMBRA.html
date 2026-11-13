@@ -1,0 +1,1733 @@
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+    <title>UMBRA</title>
+    <link rel="icon" href="./assets/logo.png">
+</head>
+<body>
+    <div id="contadorObjetos" style="
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        padding: 15px 20px;
+        color: white;
+        background: rgba(20, 10, 25, 0.85);
+        border: 2px solid #a77bff;
+        border-radius: 12px;
+        font-family: Arial, sans-serif;
+        z-index: 10;">
+        Objetos encontrados: 0 / 5
+        <br>
+        <span id="mensajeObjeto">Busca los objetos de UMBRA</span>
+    </div>
+    
+<canvas id="myCanvas">
+</canvas>
+
+
+<!-- script type="importmap" importa las librerías necesarias para three.js-->
+<script type="importmap"> 
+
+    {
+        "imports":{
+            "three": "./js/three.module.js",
+            "three/OrbitControls": "./js/OrbitControls.js",
+            "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@latest/dist/cannon-es.js",
+            "cannon-debugger":"https://github.com/pmndrs/cannon-es-debugger/blob/master/dist/cannon-es-debugger.js"
+        }
+}
+</script>
+<script type="module"> 
+//🗃️🗃️ Mandar llamar a la librería
+    import * as THREE from 'three'; 
+    import {OrbitControls} from 'three/OrbitControls';
+    console.log(OrbitControls);
+    import {RoundedBoxGeometry} from "./js/RoundedBoxGeometry.js";
+    import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@latest/dist/cannon-es.js';
+    import CannonDebugger from './js/cannon-es-debugger.js';
+
+    import Stella from './js/Stella.js';
+    import Vesper from './js/Vesper.js';
+    import Ellowen from './js/Ellowen.js';
+
+//🕹️🕹️ Renderer - Realiza una conexión entre el código y el canvas
+    var renderer = new THREE.WebGLRenderer({
+    canvas: document.getElementById('myCanvas'), antialias: true,});
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x080200);
+
+
+// 🎬 Creando nueva escena - Es el espacio donde se colocan los objetos
+    var scene = new THREE.Scene();
+
+    // CREAR PERSONAJE SEGUN LA SELECCION
+    var personajeJugador = new THREE.Group();
+
+    var personajeSeleccionado = localStorage.getItem("personajeSeleccionado");
+    console.log("Personaje seleccionado:", personajeSeleccionado);
+    var personaje;
+
+    if (personajeSeleccionado === "vesper") {
+        personaje = Vesper(0, 0, 0);
+    }
+    else if (personajeSeleccionado === "ellowen") {
+        personaje = Ellowen(0, 0, 0);
+    }
+    else {
+        personaje = Stella(0, 0, 0);
+    }
+
+    personajeJugador.add(personaje);
+    scene.add(personajeJugador);
+
+    // OBTENER LAS PIERNAS DEL PERSONAJE ELEGIDO
+    var piernas1 = personaje.userData.piernas1;
+    var piernas2 = personaje.userData.piernas2;
+
+
+    var reloj = new THREE.Clock();
+    var velocidad = 7;
+    var amplitud = 0.30;
+
+
+    // MUNDO DE FISICA
+    const world = new CANNON.World();
+
+    world.broadphase = new CANNON.SAPBroadphase(world);
+    world.gravity.set(0, -100, 0);
+    world.defaultContactMaterial.friction = 0;
+
+    const groundMaterial = new CANNON.Material("groundMaterial");
+
+    const wheelMaterial = new CANNON.Material("wheelMaterial");
+    const wheelGroundMaterial = new CANNON.ContactMaterial(
+    wheelMaterial, groundMaterial,{
+    friction: 0.3,
+    restitution: 0,
+    contactEquationStiffness: 1000
+    });
+
+    world.addContactMaterial(wheelGroundMaterial);
+    //const cannonDebug = new CannonDebugger(scene, world);  
+
+    const groundBody = new CANNON.Body({
+        type: CANNON.Body.STATIC,
+        shape: new CANNON.Plane()
+    });
+
+    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+    groundBody.position.y = 0;
+
+    world.addBody(groundBody);
+
+//🎥🎥 Agregar una cámara de perspectiva
+    var camera = new THREE.PerspectiveCamera(100,window.innerWidth / window.innerHeight,5,10000);
+    scene.add(camera);
+
+    // Evento para redimensionar el canvas
+    // Sizes: Objeto donde se toman los tamaños interiores 'inner' de la ventana.
+    const sizes = {
+    width: window.innerWidth,
+    height: window.innerHeight,};
+    // Tomando el 'canvas' mediante el id 'myCanvas' del HTML para cambiar sus dimensiones
+    const canvas = document.getElementById('myCanvas');
+    // Evento que se ejecutará al redimensionar 'resize' nuestra ventana
+    window.addEventListener('resize', () => {
+    // Actualizando los valores del objeto 'sizes' con las medidas internas de laventana
+    sizes.width = window.innerWidth;
+    sizes.height = window.innerHeight;
+    // Actualización de los valores en la cámara como la relación-aspecto y la
+    //matriz de proyección.
+        camera.aspect = sizes.width / sizes.height;
+        camera.updateProjectionMatrix();
+        // Aplicando al render el nuevo tamaño del 'viewport'
+        renderer.setSize(sizes.width, sizes.height);
+        });
+    
+        const gridHelper = new THREE.GridHelper( 50, 10 );
+        const axesHelper = new THREE.AxesHelper( 50 );
+
+    // COLISIONADOR DEL PERSONAJE
+    const stellaShape = new CANNON.Cylinder(50, 50, 300, 15);
+
+    const stellaBody = new CANNON.Body({
+        mass: 1,
+        material: groundMaterial,
+        position: new CANNON.Vec3(-2500, 15, 0)
+    });
+
+    // COLOCAR EL CILINDRO A LA ALTURA DEL PERSONAJE
+    stellaBody.addShape(
+        stellaShape,
+        new CANNON.Vec3(0,180,0)
+    );
+
+    world.addBody(stellaBody);
+
+    stellaBody.addEventListener('collide', function(event) {
+        var contact = event.contact;
+
+        if (!contact || !contact.ni) return;
+
+        var normal = contact.ni;
+
+        if (contact.bi.id === stellaBody.id) {
+            normal = normal.scale(-1);
+        }
+
+        if (normal.y > 0.5) {
+            puedeSaltar = true;
+        }
+    });
+
+
+    // MOVIMIENTO DEL PERSONAJE
+    const moveSpeed = 150;
+    const rotar = 5;
+    const keys = {};
+
+    window.addEventListener('keydown', function(event) {
+        if (event.code === 'Space') {event.preventDefault();
+    }
+        keys[event.code] = true;
+    });
+
+    window.addEventListener('keyup', function(event) {
+        keys[event.code] = false;
+    });
+
+    const acelerar = 15;
+    const desacelerar = 10;
+
+    let currentSpeed = 0;
+    let puedeSaltar = false;
+    const saltoF = 150;
+
+    // ANIMACION DE MOVIMIENTO
+    function animate() {
+        var forward = new THREE.Vector3(0, 0, -1);
+
+        personajeJugador.getWorldDirection(forward);
+        forward.normalize();
+
+        // CAMINAR HACIA ADELANTE
+        if (keys['KeyW']) {
+            currentSpeed = Math.min(currentSpeed + acelerar, moveSpeed);
+
+            piernas1.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 3)) * amplitud;
+
+            piernas2.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 3)) * -amplitud;
+        }
+
+        // CAMINAR HACIA ATRÁS
+        else if (keys['KeyS']) {
+            currentSpeed = Math.max(currentSpeed - acelerar, -moveSpeed);
+
+            piernas1.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 3)) * -amplitud;
+
+            piernas2.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 3)) * amplitud;
+        }
+
+        // DETENER ANIMACIÓN DE LAS PIERNAS
+        else {
+            piernas1.rotation.x = 0;
+            piernas2.rotation.x = 0;
+
+            if (currentSpeed > 0) {
+                currentSpeed = Math.max(currentSpeed - desacelerar, 0);
+            } else if (currentSpeed < 0) {
+                currentSpeed = Math.min(currentSpeed + desacelerar, 0);
+            }
+        }
+
+        // MOVIMIENTO FÍSICO
+        stellaBody.velocity.set(
+            forward.x * currentSpeed,
+            stellaBody.velocity.y,
+            forward.z * currentSpeed
+        );
+
+        // GIRAR
+        if (keys['KeyA']) {
+            stellaBody.angularVelocity.y = rotar;
+        } else if (keys['KeyD']) {
+            stellaBody.angularVelocity.y = -rotar;
+        } else {
+            stellaBody.angularVelocity.y = 0;
+        }
+
+        // SALTAR CON ESPACIO
+        if (keys['Space'] && puedeSaltar) {
+            stellaBody.velocity.y = saltoF;
+            puedeSaltar = false;
+        }
+
+        stellaBody.angularVelocity.x = 0;
+        stellaBody.angularVelocity.z = 0;
+
+        stellaBody.quaternion.x = 0;
+        stellaBody.quaternion.z = 0;
+
+        // ACTUALIZAR POSICIÓN DEL PERSONAJE
+        personajeJugador.position.copy(stellaBody.position);
+        personajeJugador.quaternion.copy(stellaBody.quaternion);
+
+        //cannonDebug.update();
+    }
+
+
+    // SINCRONIZstellaBody.addEventListenerAR FISICA Y GRAFICO
+    function FisicasAlGrafico() {
+    personajeJugador.position.set(
+        stellaBody.position.x,
+        stellaBody.position.y + 15,
+        stellaBody.position.z
+    );
+
+    personajeJugador.quaternion.copy(stellaBody.quaternion);
+    }
+
+//LUCES 
+    var light1 = new THREE.AmbientLight(0xE83602,0.9);
+    light1.position.set(300,60,-500);
+    scene.add(light1);
+
+//SUELO 
+    var base = new THREE.BoxGeometry(6000,0,5000);
+    var textura1= new THREE.TextureLoader().load("./assets/roca1.png");
+    var colorbase = new THREE.MeshLambertMaterial({map:textura1});
+    var suelo = new THREE.Mesh(base,colorbase);
+    scene.add(suelo); 
+    suelo.receiveShadow=true;
+
+
+    // 🗻 VOLCÁN 1
+//BASE DEL VOLCAN
+var basevolcan = new THREE.ConeGeometry(400, 300, 8);
+var textura2= new THREE.TextureLoader().load("./assets/piedra1.jpg");
+var textura2 = new THREE.MeshLambertMaterial({map:textura2});
+var basevolcan = new THREE.Mesh(basevolcan,textura2);
+basevolcan.position.set(0, 350, 0);
+//scene.add(basevolcan);
+
+//SEGUNDA CAPA DEL VOLCAN
+var basevolcan2 = new THREE.ConeGeometry(250, 220, 8);
+var textura2= new THREE.TextureLoader().load("./assets/piedra1.jpg");
+var textura2 = new THREE.MeshLambertMaterial({color: 0x542d35});
+var basevolcan2 = new THREE.Mesh(basevolcan2, textura2);
+basevolcan2.position.set(0, 430, 0);
+//scene.add(basevolcan2);
+
+// TERCERA CAPA DEL VOLCAN
+var basevolcan3 = new THREE.ConeGeometry(150, 150, 8);
+var textura2 = new THREE.MeshLambertMaterial({ color: 0x6b3230});
+var basevolcan3 = new THREE.Mesh(basevolcan3, textura2);
+basevolcan3.position.set(0, 490, 0);
+//scene.add(basevolcan3);
+
+//CRATER DEL VOLCAN 
+var crater = new THREE.TorusGeometry(90,30,50);
+var texturalava= new THREE.TextureLoader().load("./assets/lava1.jpg");
+var cratertextura = new THREE.MeshLambertMaterial({map:texturalava});
+var crater = new THREE.Mesh(crater, cratertextura);
+crater.position.set(0, 500, 0);
+crater.rotation.set(1.6, 0, 0);
+//scene.add(crater);
+
+//LAVA 
+var lava = new THREE.CylinderGeometry(65, 65, 12, 40);
+var lavatextura = new THREE.MeshLambertMaterial({color: 0xff8c00});
+var lava = new THREE.Mesh(lava, lavatextura);
+lava.position.set(0, 530, 0);
+//scene.add(lava);
+
+//LAVA CENTRAL
+var lava2 = new THREE.CylinderGeometry(35, 50, 20, 30);
+var lava2textura = new THREE.MeshLambertMaterial({color: 0xF5BE27});
+var lava2 = new THREE.Mesh(lava2, lavatextura);
+lava2.position.set(0, 540, 0);
+//scene.add(lava2);
+
+//LAVA EXPLOTANDO
+var lava3 = new THREE.CylinderGeometry(18, 10, 180, 20);
+var lava3textura = new THREE.MeshLambertMaterial({color: 0xff4500});
+var lava3 = new THREE.Mesh(lava3, lava3textura);
+lava3.position.set(65, 620, 0);
+lava3.rotation.set(0, 0, -0.35);
+//scene.add(lava3);
+
+//LAVA ABAJO
+var lava4 = new THREE.CylinderGeometry(15, 8, 140, 20);
+var lava3textura = new THREE.MeshLambertMaterial({color: 0xff6600});
+var lava4= new THREE.Mesh(lava4, lava3textura);
+lava4.position.set(-55, 580, 5);
+lava4.rotation.set(0, 0, 0.30);
+//scene.add(lava4);
+
+//PIEDRAS DEL VOLCAN 
+var piedra1 = new THREE.BoxGeometry(70, 50, 70);
+var piedra1textura = new THREE.MeshLambertMaterial({color: 0x29202b});
+var piedra1 = new THREE.Mesh(piedra1, piedra1textura);
+piedra1.position.set(-150, 420, 30);
+piedra1.rotation.set(0, 0, 0.3);
+//scene.add(piedra1);
+
+var piedra2 = new THREE.BoxGeometry(60, 70, 60);
+var piedra1textura = new THREE.MeshLambertMaterial({color: 0x392432});
+var piedra2 = new THREE.Mesh(piedra2, piedra1textura);
+piedra2.position.set(150, 400, -20);
+piedra2.rotation.set(0, 0, -0.4);
+//scene.add(piedra2);
+
+//AGRUPAR VOLCAN
+var volcan= new THREE.Group();
+volcan.add(basevolcan,basevolcan2,basevolcan3,crater,lava,lava2,lava3,lava4,
+piedra1,piedra2);
+volcan.position.set(0,-150,0);
+scene.add(volcan);
+
+    
+//LUZ1🔦
+var punto1= new THREE.PointLight(0xF5BE27,0.3,0.2,0);
+punto1.position.set(0,500,0);
+scene.add(punto1);
+//DETERMINAR PUNTO
+var helper1= new THREE.PointLightHelper(punto1);
+//scene.add(helper1);
+
+//CLONAR VOLCAN
+var volcan1= volcan.clone();
+volcan1.position.set(-2000,-150,-800);
+scene.add(volcan1);
+
+//LUZ2🔦
+var punto2= new THREE.PointLight(0xF5BE27,0.2,0.5,0);
+punto2.position.set(-2000,300,-800);
+scene.add(punto2);
+//DETERMINAR PUNTO
+var helper2= new THREE.PointLightHelper(punto2);
+//scene.add(helper2);
+
+//CLONAR VOLCAN
+var volcan2= volcan.clone();
+volcan2.position.set(2500,-150,-1000);
+scene.add(volcan2);
+
+//CLONAR VOLCAN3
+var volcan3= volcan.clone();
+volcan3.scale.set(1.5,1.5,1.5);
+volcan3.position.set(1500,-250,1000);
+scene.add(volcan3);
+
+//CLONAR VOLCAN4
+var volcan4= volcan.clone();
+volcan4.scale.set(1.8,1.8,1.8);
+volcan4.position.set(-2000,-350,1000);
+scene.add(volcan4);
+//LUZ2🔦
+var punto4= new THREE.PointLight(0xF5BE27,0.2,0.5,0.9);
+punto4.position.set(-2000,700,1000);
+scene.add(punto4);
+//DETERMINAR PUNTO
+var helper4= new THREE.PointLightHelper(punto4);
+//scene.add(helper4);
+
+    function crearColisionVolcan(grupo) {
+
+        var escala = grupo.scale.x;
+
+        // Crear un cilindro grande para cubrir el volcán
+        var colisionVolcan = new CANNON.Cylinder(
+            400 * escala,
+            400 * escala,
+            400 * escala,
+            16
+        );
+
+        // Crear el cuerpo físico
+        var cuerpoVolcan = new CANNON.Body({
+            mass: 0,
+            type: CANNON.Body.STATIC,
+            position: new CANNON.Vec3(
+                grupo.position.x,
+                grupo.position.y + (300 * escala),
+                grupo.position.z
+            )
+        });
+
+        cuerpoVolcan.addShape(colisionVolcan);
+
+        // Agregar al mundo físico
+        world.addBody(cuerpoVolcan);
+    }
+
+    // COLISIONES DE LOS VOLCANES
+    crearColisionVolcan(volcan);
+    crearColisionVolcan(volcan1);
+    crearColisionVolcan(volcan2);
+    crearColisionVolcan(volcan3);
+    crearColisionVolcan(volcan4);
+
+
+//ROCA HEXAGONAL
+var roca1 = new THREE.CylinderGeometry(100, 120, 80, 6);
+var texturaroca1 = new THREE.MeshLambertMaterial({ color: 0x401B08});
+var roca1 = new THREE.Mesh(roca1, texturaroca1);
+roca1.position.set(-500, 80, 0);
+roca1.rotation.set(0, 0, 0);
+//scene.add(roca1);
+
+var roca2 = new THREE.CylinderGeometry(120, 140, 60, 6);
+var textura1 = new THREE.MeshLambertMaterial({color: 0x8C4D29});
+var roca2 = new THREE.Mesh(roca2, textura1);
+roca2.position.set(-500,50, 0);
+roca2.scale.set(1.3, 1, 1);
+roca2.rotation.set(0, 0.2, 0);
+//scene.add(roca2);
+
+//PARTE CENTRAL
+var roca3 = new THREE.CylinderGeometry(55, 75, 45, 6);
+var texturaroca3 = new THREE.MeshLambertMaterial({color: 0x1C0C05});
+var roca3 = new THREE.Mesh(roca3, texturaroca3);
+roca3.position.set(-500, 140, -5);
+roca3.rotation.set(0, -0.2, 0);
+//scene.add(roca3);
+
+
+//PARTE CENTRAL
+var roca4 = new THREE.CylinderGeometry(55, 75, 45, 6);
+var texturaroca4 = new THREE.MeshLambertMaterial({color: 0x1C0C05});
+var roca4 = new THREE.Mesh(roca4, texturaroca4);
+roca4.position.set(-500, 140, -5);
+roca4.rotation.set(0, -0.2, 0);
+//scene.add(roca4);
+
+//ROCA HEXAGONAL 5
+var roca5 = new THREE.CylinderGeometry(100, 120, 80, 6);
+var texturaroca5 = new THREE.MeshLambertMaterial({ color: 0x1C0C05});
+var roca5 = new THREE.Mesh(roca5, texturaroca5);
+roca5.position.set(-500, 80, 0);
+roca5.rotation.set(0, 0, 0);
+scene.add(roca5);
+
+//ROCA HEXAGONAL 6
+var roca6 = new THREE.CylinderGeometry(200, 180, 100, 6);
+var texturaroca6 = new THREE.MeshLambertMaterial({ color: 0x996A12});
+var roca6 = new THREE.Mesh(roca6, texturaroca6);
+roca6.position.set(500, 80, 0);
+scene.add(roca6);
+
+//ROCA HEXAGONAL 7
+var roca7 = new THREE.CylinderGeometry(50, 180, 100, 6);
+var texturaroca7 = new THREE.MeshLambertMaterial({ color: 0x3D2906});
+var roca7 = new THREE.Mesh(roca7, texturaroca7);
+roca7.position.set(450, 80,-250);
+scene.add(roca7);
+
+//ROCA HEXAGONAL 8
+var roca8 = new THREE.CylinderGeometry(20, 180, 100, 6);
+var texturaroca8 = new THREE.MeshLambertMaterial({ color: 0x8F7245});
+var roca8 = new THREE.Mesh(roca8, texturaroca8);
+roca8.position.set(670, 80,-180);
+scene.add(roca8);
+
+//ROCA HEXAGONAL 9
+var roca9 = new THREE.CylinderGeometry(60, 100, 100, 6);
+var texturaroca9 = new THREE.MeshLambertMaterial({ color: 0x8F7245});
+var roca9 = new THREE.Mesh(roca9, texturaroca9);
+roca9.position.set(980, 80,-300);
+scene.add(roca9);
+
+//ROCA HEXAGONAL 10
+var roca10 = new THREE.CylinderGeometry(60, 100, 100, 6);
+var texturaroca10= new THREE.MeshLambertMaterial({ color: 0x8F7245});
+var roca10 = new THREE.Mesh(roca10, texturaroca10);
+roca10.position.set(-2000, 80,-350);
+scene.add(roca10);
+
+//ROCA HEXAGONAL 11
+var roca11 = new THREE.CylinderGeometry(100, 100, 100, 6);
+var texturaroca11= new THREE.MeshLambertMaterial({ color: 0x8F5945});
+var roca11 = new THREE.Mesh(roca11, texturaroca11);
+roca11.position.set(-2000, 80,-1200);
+scene.add(roca11);
+
+//ROCA HEXAGONAL 12
+var roca12 = new THREE.CylinderGeometry(100, 100, 100, 6);
+var texturaroca12= new THREE.MeshLambertMaterial({ color: 0x8F5945});
+var roca12 = new THREE.Mesh(roca12, texturaroca12);
+roca12.scale.set(2.8,2.8,2.8);
+roca12.position.set(-800, 120,900);
+scene.add(roca12);
+
+//ROCA HEXAGONAL 13
+var roca13 = new THREE.CylinderGeometry(100, 200, 200,5);
+var textura13= new THREE.TextureLoader().load("./assets/lava1.jpg");
+var texturaroca13 = new THREE.MeshLambertMaterial({map:textura13});
+var roca13 = new THREE.Mesh(roca13, texturaroca13);
+roca13.scale.set(2.8,3.8,2.8);
+roca13.position.set(-800,350,1500);
+scene.add(roca13);
+
+//ROCA HEXAGONAL 14
+var roca14 = new THREE.CylinderGeometry(100, 200, 200,5);
+var textura14= new THREE.TextureLoader().load("./assets/lava1.jpg");
+var texturaroca14 = new THREE.MeshLambertMaterial({map:textura14});
+var roca14 = new THREE.Mesh(roca14, texturaroca14);
+roca14.scale.set(2.8,2.8,2.8);
+roca14.position.set(-800,300,-1900);
+scene.add(roca14);
+
+//ROCA HEXAGONAL 15
+var roca15 = new THREE.CylinderGeometry(100, 200, 200,5);
+var textura14= new THREE.TextureLoader().load("./assets/lava1.jpg");
+var texturaroca15 = new THREE.MeshLambertMaterial({map:textura14});
+var roca15 = new THREE.Mesh(roca15, texturaroca15);
+roca15.scale.set(1.5,1.5,1.5);
+roca15.position.set(1500,160,-1900);
+scene.add(roca15);
+
+//ROCA HEXAGONAL 16
+var roca16 = new THREE.CylinderGeometry(100, 200, 200,5);
+var textura16= new THREE.TextureLoader().load("./assets/roca2.jpg");
+var texturaroca16 = new THREE.MeshLambertMaterial({map:textura16});
+var roca16 = new THREE.Mesh(roca16, texturaroca16);
+roca16.scale.set(2.5,3.5,2.5);
+roca16.position.set(1000,360,-1900);
+scene.add(roca16);
+
+//ROCA HEXAGONAL 17
+var roca17 = new THREE.CylinderGeometry(100, 200, 200,6);
+var textura16= new THREE.TextureLoader().load("./assets/roca2.jpg");
+var texturaroca17 = new THREE.MeshLambertMaterial({map:textura16});
+var roca17 = new THREE.Mesh(roca17, texturaroca17);
+roca17.scale.set(2.5,2.5,2.5);
+roca17.position.set(500,300,1900);
+scene.add(roca17);
+
+//ROCA HEXAGONAL 18
+var roca18 = new THREE.CylinderGeometry(100, 200, 200,6);
+var textura16= new THREE.TextureLoader().load("./assets/roca2.jpg");
+var texturaroca18 = new THREE.MeshLambertMaterial({map:textura16});
+var roca18 = new THREE.Mesh(roca18, texturaroca18);
+roca18.scale.set(1.2,1.2,1.2);
+roca18.position.set(-2700,100,-700);
+scene.add(roca18);
+
+//ROCA HEXAGONAL 19
+var roca19 = new THREE.CylinderGeometry(100, 200, 200,6);
+var textura16= new THREE.TextureLoader().load("./assets/roca2.jpg");
+var texturaroca19 = new THREE.MeshLambertMaterial({map:textura16});
+var roca19 = new THREE.Mesh(roca19, texturaroca19);
+roca19.scale.set(1.3,1.3,1.3);
+roca19.position.set(-2800,160,-1000);
+scene.add(roca19);
+
+
+//ROCA HEXAGONAL 20
+var roca20 = new THREE.CylinderGeometry(250, 150, 100, 6);
+var texturaroca20= new THREE.MeshLambertMaterial({ color: 0x57160A});
+var roca20 = new THREE.Mesh(roca20, texturaroca20);
+roca20.position.set(-1500, 80,-1800);
+scene.add(roca20);
+
+//ROCA HEXAGONAL 21
+var roca21 = new THREE.CylinderGeometry(100, 150, 100, 6);
+var texturaroca21= new THREE.MeshLambertMaterial({ color: 0x943523});
+var roca21 = new THREE.Mesh(roca21, texturaroca21);
+roca21.position.set(-1500, 80,-2100);
+scene.add(roca21);
+
+//ROCA HEXAGONAL 22
+var roca22 = new THREE.CylinderGeometry(100, 150, 100, 6);
+var texturaroca22= new THREE.MeshLambertMaterial({ color: 0x8F550A});
+var roca22 = new THREE.Mesh(roca22, texturaroca22);
+roca22.position.set(-1800, 80,-1800);
+scene.add(roca22);
+
+//ROCA HEXAGONAL 23
+var roca23 = new THREE.CylinderGeometry(150, 250, 100, 6);
+var texturaroca23= new THREE.MeshLambertMaterial({ color: 0x57160A});
+var roca23 = new THREE.Mesh(roca23, texturaroca23);
+roca23.position.set(0, 80,-1800);
+scene.add(roca23);
+
+//ROCA HEXAGONAL 23
+var roca23 = new THREE.CylinderGeometry(200, 260, 150, 6);
+var texturaroca23= new THREE.MeshLambertMaterial({ color: 0x3D2304});
+var roca23 = new THREE.Mesh(roca23, texturaroca23);
+roca23.position.set(0, 80,-1500);
+scene.add(roca23);
+
+//ROCA HEXAGONAL 24
+var roca24 = new THREE.CylinderGeometry(100, 200, 200,5);
+var textura14= new THREE.TextureLoader().load("./assets/lava1.jpg");
+var texturaroca24 = new THREE.MeshLambertMaterial({map:textura14});
+var roca24 = new THREE.Mesh(roca24, texturaroca24);
+roca24.scale.set(1.5,1.5,1.5);
+roca24.position.set(1500,100,-1000);
+scene.add(roca24);
+
+//ROCA HEXAGONAL 25
+var roca25 = new THREE.CylinderGeometry(100, 200, 200,5);
+var textura14= new THREE.TextureLoader().load("./assets/lava1.jpg");
+var texturaroca25 = new THREE.MeshLambertMaterial({map:textura14});
+var roca25 = new THREE.Mesh(roca25, texturaroca25);
+roca25.scale.set(1.8,1.8,1.8);
+roca25.position.set(2500,120,1000);
+scene.add(roca25);
+
+//ROCA HEXAGONAL 26
+var roca26 = new THREE.CylinderGeometry(60, 100, 100, 6);
+var texturaroca26= new THREE.MeshLambertMaterial({ color: 0x8F7245});
+var roca26 = new THREE.Mesh(roca26, texturaroca26);
+roca26.position.set(2500, 80,-400);
+scene.add(roca26);
+
+//ROCA HEXAGONAL 26
+var roca27 = new THREE.CylinderGeometry(60, 100, 100, 6);
+var texturaroca27= new THREE.MeshLambertMaterial({ color: 0x8F7245});
+var roca27 = new THREE.Mesh(roca27, texturaroca27);
+roca27.position.set(2500, 80,340);
+scene.add(roca27);
+
+
+ //AGRUPAR ROCA
+var rocas= new THREE.Group();
+rocas.add(roca1,roca2,roca3);
+rocas.position.set(-500,0,-1200);
+scene.add(rocas);  
+
+//CLONAR PIEDRA1
+var piedra1= rocas.clone();
+piedra1.scale.set(1.5,1.5,1.5);
+piedra1.position.set(3000,0,-2000);
+scene.add(piedra1);
+
+//CLONAR PIEDRA1
+var piedra2= rocas.clone();
+piedra2.scale.set(2.5,2.5,2.5);
+piedra2.position.set(3000,-20,1800);
+scene.add(piedra2);
+
+//CLONAR PIEDRA1
+var piedra3= rocas.clone();
+piedra3.scale.set(0.5,0.5,0.5);
+piedra3.position.set(3000,5,1800);
+scene.add(piedra3);
+
+//CLONAR PIEDRA1
+var piedra4= rocas.clone();
+piedra4.scale.set(2.8,2.8,2.8);
+piedra4.position.set(-1000,-20,1800);
+scene.add(piedra4);
+
+//CLONAR PIEDRA1
+var piedra5= rocas.clone();
+piedra5.scale.set(2.8,4.8,2.8);
+piedra5.position.set(-1000,-20,-1900);
+scene.add(piedra5);
+
+//CLONAR PIEDRA1
+var piedra5= rocas.clone();
+piedra5.scale.set(1.8,1.8,1.8);
+piedra5.position.set(800,-20,1000);
+scene.add(piedra5);
+
+
+//CLONAR PIEDRA1
+var piedra6= rocas.clone();
+piedra6.scale.set(1.8,1.8,1.8);
+piedra6.position.set(-1800,-20,700);
+scene.add(piedra6);
+
+//CLONAR PIEDRA1
+var piedra7= rocas.clone();
+piedra7.scale.set(1.6,1.8,1.8);
+piedra7.position.set(-500,-20,400);
+scene.add(piedra7);
+
+//CLONAR PIEDRA1
+var piedra8= rocas.clone();
+piedra8.scale.set(1.6,1.8,1.8);
+piedra8.position.set(1300, -20,-1500);
+scene.add(piedra8);
+
+//CLONAR PIEDRA1
+var piedra9= rocas.clone();
+piedra9.scale.set(3.8,3.8,3.8);
+piedra9.position.set(4200, -20,2000);
+scene.add(piedra9);
+
+    function crearColisionRoca(roca) {
+
+        // Obtener las dimensiones de la roca
+        var radio = Math.max(
+            roca.geometry.parameters.radiusTop,
+            roca.geometry.parameters.radiusBottom
+        );
+
+        var escalaHorizontal = Math.max(
+            roca.scale.x,
+            roca.scale.z
+        );
+
+        var radioFinal = radio * escalaHorizontal;
+        var alturaFinal = roca.geometry.parameters.height * roca.scale.y;
+
+        // Crear cilindro de colisión
+        var formaRoca = new CANNON.Cylinder(
+            radioFinal,
+            radioFinal,
+            alturaFinal,
+            8
+        );
+
+        // Crear cuerpo físico
+        var cuerpoRoca = new CANNON.Body({
+            mass: 0,
+            type: CANNON.Body.STATIC,
+            position: new CANNON.Vec3(
+                roca.position.x,
+                roca.position.y,
+                roca.position.z
+            )
+        });
+
+        cuerpoRoca.addShape(formaRoca);
+
+        world.addBody(cuerpoRoca);
+    }
+
+    // COLISIONES DE ROCAS INDIVIDUALES
+    crearColisionRoca(roca5);
+    crearColisionRoca(roca6);
+    crearColisionRoca(roca7);
+    crearColisionRoca(roca8);
+    crearColisionRoca(roca9);
+    crearColisionRoca(roca10);
+    crearColisionRoca(roca11);
+    crearColisionRoca(roca12);
+    crearColisionRoca(roca13);
+    crearColisionRoca(roca14);
+    crearColisionRoca(roca15);
+    crearColisionRoca(roca16);
+    crearColisionRoca(roca17);
+    crearColisionRoca(roca18);
+    crearColisionRoca(roca19);
+    crearColisionRoca(roca20);
+    crearColisionRoca(roca21);
+    crearColisionRoca(roca22);
+    crearColisionRoca(roca23);
+    crearColisionRoca(roca24);
+    crearColisionRoca(roca25);
+    crearColisionRoca(roca26);
+    crearColisionRoca(roca27);
+
+    function crearColisionGrupoRocas(grupo) {
+
+        var escalaX = grupo.scale.x;
+        var escalaY = grupo.scale.y;
+        var escalaZ = grupo.scale.z;
+
+        // Crear un cilindro que cubra las tres rocas
+        var formaRocas = new CANNON.Cylinder(
+            190 * Math.max(escalaX, escalaZ),
+            190 * Math.max(escalaX, escalaZ),
+            180 * escalaY,
+            8
+        );
+
+        // Crear cuerpo físico
+        var cuerpoRocas = new CANNON.Body({
+            mass: 0,
+            type: CANNON.Body.STATIC,
+            position: new CANNON.Vec3(
+                grupo.position.x - (500 * escalaX),
+                grupo.position.y + (90 * escalaY),
+                grupo.position.z
+            )
+        });
+
+        cuerpoRocas.addShape(formaRocas);
+
+        world.addBody(cuerpoRocas);
+    }
+
+    // COLISIONES DE LOS GRUPOS DE ROCAS
+    crearColisionGrupoRocas(rocas);
+    crearColisionGrupoRocas(piedra1);
+    crearColisionGrupoRocas(piedra2);
+    crearColisionGrupoRocas(piedra3);
+    crearColisionGrupoRocas(piedra4);
+    crearColisionGrupoRocas(piedra5);
+    crearColisionGrupoRocas(piedra6);
+    crearColisionGrupoRocas(piedra7);
+    crearColisionGrupoRocas(piedra8);
+    crearColisionGrupoRocas(piedra9);
+
+//CAMINO
+var cuadro1 = new THREE.BoxGeometry(350,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro1 = new THREE.Mesh( cuadro1,cuadro1textura);
+cuadro1.position.set(-2800,50,0);
+//scene.add(cuadro1);
+
+var cuadro2 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro2 = new THREE.Mesh( cuadro2,cuadro1textura);
+cuadro2.rotation.set(0, -0.4, 0);
+cuadro2.position.set(-2490,50,58);
+//scene.add(cuadro2);
+
+var cuadro3 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro3 = new THREE.Mesh( cuadro3,cuadro1textura);
+cuadro3.rotation.set(0, 0.4, 0);
+cuadro3.position.set(-2250,50,50);
+//scene.add(cuadro3);
+
+var cuadro4 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro4 = new THREE.Mesh( cuadro4,cuadro1textura);
+cuadro4.rotation.set(0, 0.4, 0);
+cuadro4.position.set(-1990,50,-60);
+//scene.add(cuadro4);
+
+var cuadro5 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro5 = new THREE.Mesh( cuadro5,cuadro1textura);
+cuadro5.rotation.set(0, 0.4, 0);
+cuadro5.position.set(-1750,50,-160);
+//scene.add(cuadro5);
+
+var cuadro6 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro6 = new THREE.Mesh( cuadro6,cuadro1textura);
+cuadro6.rotation.set(0, -0.4, 0);
+cuadro6.position.set(-1500,50,-100);
+//scene.add(cuadro6);
+
+var cuadro7 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro7 = new THREE.Mesh( cuadro7,cuadro1textura);
+cuadro7.rotation.set(0, 0.4, 0);
+cuadro7.position.set(-1480,50,-280);
+//scene.add(cuadro7);
+
+var cuadro8 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro8 = new THREE.Mesh( cuadro8,cuadro1textura);
+cuadro8.rotation.set(0, -0.4, 0);
+cuadro8.position.set(-1220,50,20);
+//scene.add(cuadro8);
+
+var cuadro9 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro9 = new THREE.Mesh( cuadro9,cuadro1textura);
+cuadro9.rotation.set(0, -0.8, 0);
+cuadro9.position.set(-1000,50,170);
+//scene.add(cuadro9);
+
+var cuadro10 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro10 = new THREE.Mesh(cuadro10,cuadro1textura);
+cuadro10.rotation.set(0, -0.7, 0);
+cuadro10.position.set(-750,50,400);
+//scene.add(cuadro10);
+
+var cuadro11 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro11 = new THREE.Mesh(cuadro11,cuadro1textura);
+cuadro11.rotation.set(0, -0.4, 0);
+cuadro11.position.set(-500,50,560);
+//scene.add(cuadro11);
+
+var cuadro12 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro12 = new THREE.Mesh(cuadro12,cuadro1textura);
+cuadro12.rotation.set(0, -0.4, 0);
+cuadro12.position.set(-200,50,680);
+//scene.add(cuadro12);
+
+var cuadro13 = new THREE.BoxGeometry(380,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro13 = new THREE.Mesh(cuadro13,cuadro1textura);
+cuadro13.rotation.set(0, 0.4, 0);
+cuadro13.position.set(80,50,680);
+//scene.add(cuadro13);
+
+var cuadro14 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro14 = new THREE.Mesh(cuadro14,cuadro1textura);
+cuadro14.rotation.set(0, 0.8, 0);
+cuadro14.position.set(375,50,480);
+//scene.add(cuadro14);
+
+var cuadro15 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro15 = new THREE.Mesh(cuadro15,cuadro1textura);
+cuadro15.rotation.set(0, 0.8, 0);
+cuadro15.position.set(620,50,210);
+//scene.add(cuadro15);
+
+var cuadro16 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro16 = new THREE.Mesh(cuadro16,cuadro1textura);
+cuadro16.rotation.set(0, 0.8, 0);
+cuadro16.position.set(850,50,-40);
+//scene.add(cuadro16);
+
+var cuadro17 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro17 = new THREE.Mesh(cuadro17,cuadro1textura);
+cuadro17.rotation.set(0, -0.2, 0);
+cuadro17.position.set(1100,50,-100);
+//scene.add(cuadro17);
+
+var cuadro18 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro18 = new THREE.Mesh(cuadro18,cuadro1textura);
+cuadro18.rotation.set(0, -0.2, 0);
+cuadro18.position.set(1500,50,-20);
+//scene.add(cuadro18);
+
+var cuadro19 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro19 = new THREE.Mesh(cuadro19,cuadro1textura);
+cuadro19.rotation.set(0, 0.2, 0);
+cuadro19.position.set(1800,50,-20);
+//scene.add(cuadro19);
+
+var cuadro20 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro20 = new THREE.Mesh(cuadro20,cuadro1textura);
+cuadro20.rotation.set(0, 0.2, 0);
+cuadro20.position.set(2150,50,-80);
+//scene.add(cuadro20);
+
+var cuadro21 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro21 = new THREE.Mesh(cuadro21,cuadro1textura);
+cuadro21.rotation.set(0, 0.4, 0);
+cuadro21.position.set(-1150,50,-420);
+//scene.add(cuadro21);
+
+var cuadro22 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro22 = new THREE.Mesh(cuadro22,cuadro1textura);
+cuadro22.rotation.set(0, 0.8, 0);
+cuadro22.position.set(-870,50,-620);
+//scene.add(cuadro22);
+
+var cuadro23 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro23 = new THREE.Mesh(cuadro23,cuadro1textura);
+cuadro23.rotation.set(0, 0.8, 0);
+cuadro23.position.set(-650,50,-850);
+//scene.add(cuadro23);
+
+var cuadro24 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro24 = new THREE.Mesh(cuadro24,cuadro1textura);
+cuadro24.rotation.set(0, -0.4, 0);
+cuadro24.position.set(-450,50,-850);
+//scene.add(cuadro24);
+
+var cuadro25 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro25 = new THREE.Mesh(cuadro25,cuadro1textura);
+cuadro25.rotation.set(0, -0.4, 0);
+cuadro25.position.set(-150,50,-715);
+//scene.add(cuadro25);
+
+var cuadro26 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro26 = new THREE.Mesh(cuadro26,cuadro1textura);
+cuadro26.rotation.set(0, -0.4, 0);
+cuadro26.position.set(180,50,-580);
+//scene.add(cuadro26);
+
+var cuadro27 = new THREE.BoxGeometry(395,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro27 = new THREE.Mesh(cuadro27,cuadro1textura);
+cuadro27.rotation.set(0, -0.4, 0);
+cuadro27.position.set(500,50,-435);
+//scene.add(cuadro27);
+
+var cuadro28 = new THREE.BoxGeometry(400,10,240);
+var cuadro1textura = new THREE.MeshLambertMaterial({color: 0xFFC10A});
+var cuadro28 = new THREE.Mesh(cuadro28,cuadro1textura);
+cuadro28.rotation.set(0, -0.4, 0);
+cuadro28.position.set(800,50,-310);
+//scene.add(cuadro28);
+
+ //AGRUPAR CAMINO
+var camino= new THREE.Group();
+camino.add(cuadro1,cuadro2,cuadro3,cuadro4,cuadro5,cuadro6,cuadro7,cuadro8,cuadro9,
+    cuadro10,cuadro11,cuadro12,cuadro13,cuadro14,cuadro15,cuadro16,cuadro17,cuadro18,
+    cuadro19,cuadro20,cuadro21,cuadro22,cuadro23,cuadro24,cuadro25,cuadro26,cuadro27,cuadro28);
+camino.position.set(0,0,0);
+scene.add(camino);  
+
+    const obstacles = [cuadro1,cuadro2,cuadro3,cuadro4,cuadro5,cuadro6,cuadro7,cuadro8,cuadro9,
+    cuadro10,cuadro11,cuadro12,cuadro13,cuadro14,cuadro15,cuadro16,cuadro17,cuadro18,
+    cuadro19,cuadro20,cuadro21,cuadro22,cuadro23,cuadro24,cuadro25,cuadro26,cuadro27,cuadro28];
+        obstacles.forEach(obstacle => {
+        const obstacleShape = new CANNON.Box(new CANNON.Vec3(
+            obstacle.geometry.parameters.width / 2,
+            obstacle.geometry.parameters.height / 2,
+            obstacle.geometry.parameters.depth / 2));
+
+            const obstacleBody = new CANNON.Body({ mass: 0 }); 
+            obstacleBody.addShape(obstacleShape);
+            obstacleBody.position.copy(obstacle.position);
+
+            const quat = new CANNON.Quaternion();
+            quat.setFromEuler( obstacle.rotation.x, obstacle.rotation.y,
+            obstacle.rotation.z, "XYZ");
+            obstacleBody.quaternion.set(quat.x, quat.y, quat.z,quat.w);
+            world.addBody(obstacleBody);
+        });
+
+//PORTAL
+var cuadrop = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop = new THREE.Mesh( cuadrop,texturaportal);
+cuadrop.rotation.set(-1.5,-1.5, 0);
+cuadrop.position.set(2600,100,-510);
+//scene.add(cuadrop);
+
+var cuadrop1 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop1 = new THREE.Mesh( cuadrop1,texturaportal);
+cuadrop1.rotation.set(-1.5,-1.5, 0);
+cuadrop1.position.set(2600,100,380);
+//scene.add(cuadrop1);
+
+var cuadrop2 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop2 = new THREE.Mesh( cuadrop2,texturaportal);
+cuadrop2.rotation.set(-1.5,-1.5, 0);
+cuadrop2.position.set(2600,250,380);
+//scene.add(cuadrop2);
+
+var cuadrop3 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop3 = new THREE.Mesh( cuadrop3,texturaportal);
+cuadrop3.rotation.set(-1.5,-1.5, 0);
+cuadrop3.position.set(2600,250,-510);
+//scene.add(cuadrop3);
+
+var cuadrop4 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop4 = new THREE.Mesh( cuadrop4,texturaportal);
+cuadrop4.rotation.set(-1.5,-1.5, 0);
+cuadrop4.position.set(2600,360,-510);
+//scene.add(cuadrop4);
+
+var cuadrop5 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop5 = new THREE.Mesh( cuadrop5,texturaportal);
+cuadrop5.rotation.set(-1.5,-1.5, 0);
+cuadrop5.position.set(2600,360,380);
+//scene.add(cuadrop5);
+
+var cuadrop6 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop6 = new THREE.Mesh( cuadrop6,texturaportal);
+cuadrop6.rotation.set(-1.5,-1.5, 0);
+cuadrop6.position.set(2600,460,-510);
+//scene.add(cuadrop6);
+
+var cuadrop7 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop7 = new THREE.Mesh( cuadrop7,texturaportal);
+cuadrop7.rotation.set(-1.5,-1.5, 0);
+cuadrop7.position.set(2600,460,380);
+//scene.add(cuadrop7); 
+
+var cuadrop8 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop8 = new THREE.Mesh( cuadrop8,texturaportal);
+cuadrop8.rotation.set(-1.5,-1.5, 0);
+cuadrop8.position.set(2600,560,-470);
+//scene.add(cuadrop8); 
+
+var cuadrop9 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop9= new THREE.Mesh( cuadrop9,texturaportal);
+cuadrop9.rotation.set(-1.5,-1.5, 0);
+cuadrop9.position.set(2600,560,330);
+//scene.add(cuadrop9); 
+
+var cuadrop10 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop10 = new THREE.Mesh( cuadrop10,texturaportal);
+cuadrop10.rotation.set(-1.5,-1.5, 0);
+cuadrop10.position.set(2600,660,-400);
+//scene.add(cuadrop10); 
+
+var cuadrop11 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop11= new THREE.Mesh( cuadrop11,texturaportal);
+cuadrop11.rotation.set(-1.5,-1.5, 0);
+cuadrop11.position.set(2600,660,280);
+//scene.add(cuadrop11);
+
+var cuadrop12 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop12 = new THREE.Mesh( cuadrop12,texturaportal);
+cuadrop12.rotation.set(-1.5,-1.5, 0);
+cuadrop12.position.set(2600,760,-300);
+//scene.add(cuadrop12); 
+
+var cuadrop13 = new THREE.BoxGeometry(150,250,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop13= new THREE.Mesh( cuadrop13,texturaportal);
+cuadrop13.rotation.set(-1.5,-1.5, 0);
+cuadrop13.position.set(2600,760,200);
+//scene.add(cuadrop13);
+
+var cuadrop14 = new THREE.BoxGeometry(190,450,100);
+var texturap= new THREE.TextureLoader().load("./assets/lava2.jpg");
+var texturaportal = new THREE.MeshLambertMaterial({map:texturap});
+var cuadrop14= new THREE.Mesh( cuadrop14,texturaportal);
+cuadrop14.rotation.set(-1.5,-1.8, 0);
+cuadrop14.position.set(2600,860,-40);
+//scene.add(cuadrop14);
+
+var fondop= new THREE.BoxGeometry(650,50,850);
+var texturafondop= new THREE.TextureLoader().load("./assets/portal1.jpg");
+var texturafondoportal = new THREE.MeshLambertMaterial({map:texturafondop});
+var fondop= new THREE.Mesh( fondop, texturafondoportal);
+fondop.rotation.set(-1.5,0,-1.6);
+fondop.position.set(2600,400,-59);
+//scene.add(fondop);
+
+//AGRUPAR PORTAL
+var portal= new THREE.Group();
+portal.add(cuadrop,cuadrop1,cuadrop2,cuadrop3,cuadrop4,cuadrop5,cuadrop6,
+cuadrop7,cuadrop8,cuadrop9,cuadrop10,cuadrop11,cuadrop12,cuadrop13,cuadrop14,fondop
+);
+portal.position.set(0,0,0);
+scene.add(portal);  
+
+//LUZ4🔦
+var punto4= new THREE.PointLight(0xFFE81A,0.3,0.4,0);
+punto4.position.set(2500,800,-300);
+scene.add(punto4);
+//DETERMINAR PUNTO
+var helper4= new THREE.PointLightHelper(punto4);
+//scene.add(helper4);
+
+//LUZ5🔦
+var punto5= new THREE.PointLight(0xFFE81A,0.3,0.4,0);
+punto5.position.set(2500,800,300);
+scene.add(punto5);
+//DETERMINAR PUNTO
+var helper5= new THREE.PointLightHelper(punto5);
+//scene.add(helper5);
+
+
+
+
+     //CRANEO
+    var esfera = new THREE.SphereGeometry(5,20,25);
+    var color1 = new THREE.MeshLambertMaterial({color: 0xFFFBFA});
+    var craneo1 = new THREE.Mesh(esfera, color1);
+    //scene.add(craneo1);
+    craneo1.position.set(0, 0, 0);
+
+    var craneo2 = new THREE.Mesh(esfera, color1);
+    //scene.add(craneo2);
+    craneo2.position.set(0,-2.5, 1);
+    craneo2.scale.set(0.75,0.75,0.75);
+
+    var color2 = new THREE.MeshLambertMaterial({color: 0x1C1B1B});
+    var ojo1 = new THREE.Mesh(esfera, color2);
+    //scene.add(ojo1);
+    ojo1.position.set(1.2,0, 4.5);
+    ojo1.scale.set(0.15,0.25,0.15);
+    ojo1.rotation.set(0,0.7,0.5);
+
+    var ojo2 = new THREE.Mesh(esfera, color2);
+    //scene.add(ojo2);
+    ojo2.position.set(-1.2,0, 4.5);
+    ojo2.scale.set(0.15,0.25,0.15);
+    ojo2.rotation.set(0,-0.7,-0.5);
+
+    var nariz1 = new THREE.Mesh(esfera, color2);
+    //scene.add(nariz1);
+    nariz1.position.set(0.5,-2, 4.5);
+    nariz1.scale.set(0.05,0.15,0.05);
+    nariz1.rotation.set(0,0.7,0.5);
+
+    var nariz2 = new THREE.Mesh(esfera, color2);
+    //scene.add(nariz2);
+    nariz2.position.set(-0.5,-2, 4.5);
+    nariz2.scale.set(0.05,0.15,0.05);
+    nariz2.rotation.set(0,-0.7,-0.5);
+
+    var boca1 = new THREE.Mesh(esfera, color2);
+    //scene.add(boca1);
+    boca1.position.set(0,-3.2, 4.45);
+    boca1.scale.set(0.03,0.15,0.05);
+
+    var boca2 = new THREE.Mesh(esfera, color2);
+    //scene.add(boca2);
+    boca2.position.set(0.5,-3.2, 4.45);
+    boca2.scale.set(0.03,0.1,0.05);
+
+    var boca3 = new THREE.Mesh(esfera, color2);
+    //scene.add(boca3);
+    boca3.position.set(-0.5,-3.2, 4.45);
+    boca3.scale.set(0.03,0.1,0.05);
+
+        //PUNTO DE LUZ
+        var puntoLuz1 = new THREE.PointLight(0xD8DCF0,2,200,0.5);
+        puntoLuz1.position.set(-1200,500,-500);
+        //scene.add(puntoLuz1);
+        puntoLuz1.scale.set(9,9,9);
+        var helpert1 = new THREE.PointLightHelper(puntoLuz1);
+        //scene.add(helpert1);
+
+        //AGRUPAR CRANEO
+        var craneoF = new THREE.Group();
+        craneoF.add(craneo1,craneo2,ojo1,ojo2,nariz1,nariz2,boca1,boca2,boca3,puntoLuz1); 
+        scene.add(craneoF);
+        craneoF.position.set(-1200,300,-500);
+        craneoF.scale.set(22,22,22);
+
+    //FUEGO
+    var cilindro = new THREE.CylinderGeometry(5, 5, 3, 20);
+    var color3 = new THREE.MeshLambertMaterial({color: 0x555555});
+    var fuego1 = new THREE.Mesh(cilindro, color3);
+    //scene.add(fuego1);
+    fuego1.position.set(0, -1, 0);
+
+    // Llama
+    var cono = new THREE.ConeGeometry(4, 7, 20);
+    var material1 = new THREE.MeshLambertMaterial({
+        color: 0x66CCFF,
+        transparent:true,
+        opacity:0.5});
+    var fuego2 = new THREE.Mesh(cono, material1);
+    //scene.add(fuego2);
+    fuego2.position.set(0, 4, 0);
+
+    // Llama pequeña
+    var cono2 = new THREE.ConeGeometry(2, 4, 20);
+    var color4 = new THREE.MeshLambertMaterial({color: 0xFFFFFF});
+    var fuego3 = new THREE.Mesh(cono2, color4);
+    //scene.add(fuego3);
+    fuego3.position.set(0, 3, 0);
+
+        //PUNTO DE LUZ
+        var puntoLuz2 = new THREE.PointLight(0xD8DCF0,2,200,0.5);
+        puntoLuz2.position.set(-1900,400,300);
+        //scene.add(puntoLuz2);
+        puntoLuz2.scale.set(9,9,9);
+        var helpert2 = new THREE.PointLightHelper(puntoLuz2);
+        //scene.add(helpert2);
+
+        //AGRUPAR FUEGO
+        var fuegoF = new THREE.Group();
+        fuegoF.add(fuego1,fuego2,fuego3,puntoLuz2); 
+        scene.add(fuegoF);
+        fuegoF.position.set(-1700,200,-50);
+        fuegoF.scale.set(22,22,22);
+
+    //ESPADA
+    var caja = new THREE.BoxGeometry(2.5, 8, 0.5);
+    var color5 = new THREE.MeshLambertMaterial({color: 0x777777});
+    var espada1 = new THREE.Mesh(caja, color5);
+    //scene.add(espada1);
+    espada1.position.set(0, 0, 0);
+
+    var caja2 = new THREE.BoxGeometry(1.8, 1.8, 0.5);
+    var espada2 = new THREE.Mesh(caja2, color5);
+    //scene.add(espada2);
+    espada2.position.set(0, -4, 0);
+    espada2.rotation.set(0,0,0.8);
+    
+    var caja3 = new THREE.BoxGeometry(4, 0.8, 1);
+    var color6 = new THREE.MeshLambertMaterial({color: 0xAD7B0E});
+    var espada3 = new THREE.Mesh(caja3, color6);
+    //scene.add(espada3);
+    espada3.position.set(0, 4.4, 0);
+    
+    var cilindro5 = new THREE.CylinderGeometry(0.5, 0.5, 2.5, 15);
+    var color7 = new THREE.MeshLambertMaterial({color: 0x332305});
+    var espada4 = new THREE.Mesh(cilindro5, color7);
+    //scene.add(espada4);
+    espada4.position.set(0, 6, 0);
+
+    var esfera2 = new THREE.SphereGeometry(1,20,25);
+    var espada5 = new THREE.Mesh(esfera2, color6);
+    //scene.add(espada5);
+    espada5.position.set(0, 8, 0);
+
+    var dodecahedron01 = new THREE.OctahedronGeometry(1.5,0);
+    var color8 = new THREE.MeshLambertMaterial({color:0x780F07});
+    var espada6 = new THREE.Mesh(dodecahedron01, color8);
+    //scene.add(espada6);
+    espada6.position.set(0, 4.4, 0);
+    espada6.scale.set(0.5,0.5,0.5);
+    
+    var caja4 = new THREE.BoxGeometry(0.1, 10.2, 0.6);
+    var color9 = new THREE.MeshLambertMaterial({color: 0x262626});
+    var espada7 = new THREE.Mesh(caja4, color9);
+    //scene.add(espada7);
+    espada7.position.set(0, 0, 0);
+
+        //PUNTO DE LUZ
+        var puntoLuz3 = new THREE.PointLight(0xD8DCF0,2,200,0.5);
+        puntoLuz3.position.set(-300,500,-800);
+        //scene.add(puntoLuz3);
+        puntoLuz3.scale.set(9,9,9);
+        var helpert3 = new THREE.PointLightHelper(puntoLuz3);
+        //scene.add(helpert3);
+
+        //AGRUPAR ESPADA
+        var espadaF = new THREE.Group();
+        espadaF.add(espada1,espada2,espada3,espada4,espada5,espada6,espada7,puntoLuz3); 
+        scene.add(espadaF);
+        espadaF.position.set(-300,300,-800);
+        espadaF.rotation.set(0,0,-0.5);
+        espadaF.scale.set(22,22,22);
+
+    //ESCUDO
+    var cubo1 = new RoundedBoxGeometry(10,12,2,2,1);
+    var color10 = new THREE.MeshLambertMaterial({color: 0x828282});
+    var escudo1 = new THREE.Mesh(cubo1, color10);
+    //scene.add(escudo1);
+    escudo1.position.set(0, 0, 0);
+    
+    var cubo2 = new RoundedBoxGeometry(10,10,9,10,10);
+    var escudo2 = new THREE.Mesh(cubo2, color10);
+    //scene.add(escudo2);
+    escudo2.position.set(0, -5, 0);
+    escudo2.scale.set(1,0.57,0.22);
+
+    var color11 = new THREE.MeshLambertMaterial({color: 0x333333});
+    var escudo3 = new THREE.Mesh(cubo1, color11);
+    //scene.add(escudo3);
+    escudo3.position.set(0, 0, 0);
+    escudo3.scale.set(0.75,0.7,1.3)
+
+    var cubo2 = new RoundedBoxGeometry(8,4,8.5,10,6);
+    var escudo4 = new THREE.Mesh(cubo2, color11);
+    //scene.add(escudo4);
+    escudo4.position.set(0, -4, 0);
+    escudo4.scale.set(0.95,0.8,0.3);
+
+    var esfera12 = new THREE.SphereGeometry(5,20,25);
+    var color12 = new THREE.MeshLambertMaterial({color: 0xB57538});
+    var escudo5 = new THREE.Mesh(esfera12, color12);
+    //scene.add(escudo5);
+    escudo5.position.set(0, 0, 1);
+    escudo5.scale.set(0.1,0.35,0.1);
+
+    var escudo6 = new THREE.Mesh(esfera12, color12);
+    //scene.add(escudo6);
+    escudo6.position.set(-1, -1, 1);
+    escudo6.scale.set(0.1,0.25,0.1);
+    escudo6.rotation.set(0,0,0.8);
+
+    var escudo7 = new THREE.Mesh(esfera12, color12);
+    //scene.add(escudo7);
+    escudo7.position.set(1, -1, 1);
+    escudo7.scale.set(0.1,0.25,0.1);
+    escudo7.rotation.set(0,0,-0.8);
+
+        //PUNTO DE LUZ
+        var puntoLuz4 = new THREE.PointLight(0xD8DCF0,2,200,0.5);
+        puntoLuz4.position.set(500,500,300);
+       // scene.add(puntoLuz4);
+        puntoLuz4.scale.set(9,9,9);
+        var helpert4 = new THREE.PointLightHelper(puntoLuz4);
+        //scene.add(helpert4);
+
+        //AGRUPAR ESPADA
+        var escudoF = new THREE.Group();
+        escudoF.add(escudo1,escudo2,escudo3,escudo4,escudo5,escudo6,escudo7,puntoLuz4); 
+        scene.add(escudoF);
+        escudoF.position.set(500,300,300);
+        escudoF.scale.set(22,22,22);
+        escudoF.rotation.set(0,-1.8,0);
+    
+    //CUERDA
+    var torus = new THREE.TorusGeometry(5, 0.8, 10, 20);
+    var textura1 = new THREE.TextureLoader().load("./assets/textura_cuerda.jpg");
+    var material2 = new THREE.MeshLambertMaterial({map:textura1});
+
+    var cuerda1 = new THREE.Mesh(torus, material2);
+    //scene.add(cuerda1);
+    cuerda1.position.set(0, 0, 0);
+    cuerda1.rotation.x = Math.PI / 2;
+
+    var cuerda2 = new THREE.Mesh(torus, material2);
+    //scene.add(cuerda2);
+    cuerda2.position.set(0, 1.5, 0);
+    cuerda2.rotation.x = Math.PI / 2;
+
+    var cuerda3 = new THREE.Mesh(torus, material2);
+    //scene.add(cuerda3);
+    cuerda3.position.set(0, 2.8, 0);
+    cuerda3.scale.set(0.85,0.85,0.85);
+    cuerda3.rotation.x = Math.PI / 2;
+
+    var cilindro6 = new THREE.CylinderGeometry(0.75, 0.75, 5, 15);
+    var cuerda4 = new THREE.Mesh(cilindro6, material2);
+    //scene.add(cuerda4);
+    cuerda4.position.set(6, 0, 0);
+    cuerda4.rotation.set(0,0,0.9);
+        
+        //PUNTO DE LUZ
+        var puntoLuz5 = new THREE.PointLight(0xD8DCF0,2,200,0.5);
+        puntoLuz5.position.set(1700,500,100);
+        //scene.add(puntoLuz5);
+        puntoLuz5.scale.set(9,9,9);
+        var helpert5 = new THREE.PointLightHelper(puntoLuz5);
+       // scene.add(helpert5);
+
+        //AGRUPAR CUERDA
+        var cuerdaF = new THREE.Group();
+        cuerdaF.add(cuerda1,cuerda2,cuerda3,cuerda4,puntoLuz5); 
+        scene.add(cuerdaF);
+        cuerdaF.position.set(1700,300,100);
+        cuerdaF.scale.set(22,22,22);
+
+
+
+    // RECOLECCIÓN DE OBJETOS
+    var objetosRecolectados = 0;
+
+    var cambioDeMundo = false;
+
+    var craneoEncontrado = false;
+    var fuegoEncontrado = false;
+    var espadaEncontrada = false;
+    var escudoEncontrado = false;
+    var cuerdaEncontrada = false;
+
+    var objetoCercano = null;
+
+    var contadorHTML = document.getElementById("contadorObjetos");
+    var mensajeHTML = document.getElementById("mensajeObjeto");
+
+    // Detectar la distancia horizontal entre el personaje y un objeto
+    function distanciaObjeto(objeto) {
+        var diferenciaX = personajeJugador.position.x - objeto.position.x;
+        var diferenciaZ = personajeJugador.position.z - objeto.position.z;
+
+        return Math.sqrt(
+            diferenciaX * diferenciaX +
+            diferenciaZ * diferenciaZ
+        );
+    }
+
+    // Buscar un objeto cercano
+    function detectarObjetoCercano() {
+        objetoCercano = null;
+        var distanciaMenor = 250;
+
+        if (!craneoEncontrado && distanciaObjeto(craneoF) < distanciaMenor) {
+            objetoCercano = craneoF;
+            distanciaMenor = distanciaObjeto(craneoF);
+        }
+
+        if (!fuegoEncontrado && distanciaObjeto(fuegoF) < distanciaMenor) {
+            objetoCercano = fuegoF;
+            distanciaMenor = distanciaObjeto(fuegoF);
+        }
+
+        if (!espadaEncontrada && distanciaObjeto(espadaF) < distanciaMenor) {
+            objetoCercano = espadaF;
+            distanciaMenor = distanciaObjeto(espadaF);
+        }
+
+        if (!escudoEncontrado && distanciaObjeto(escudoF) < distanciaMenor) {
+            objetoCercano = escudoF;
+            distanciaMenor = distanciaObjeto(escudoF);
+        }
+
+        if (!cuerdaEncontrada && distanciaObjeto(cuerdaF) < distanciaMenor) {
+            objetoCercano = cuerdaF;
+            distanciaMenor = distanciaObjeto(cuerdaF);
+        }
+
+        if (objetoCercano !== null) {
+            mensajeHTML.textContent = "Presiona E para recoger el objeto";
+        } else if (objetosRecolectados < 5) {
+            mensajeHTML.textContent = "Busca los objetos de UMBRA";
+        }
+    }
+
+    // Recoger el objeto que está más cerca
+    function recogerObjeto() {
+
+        if (objetoCercano === null) {
+            return;
+        }
+
+        if (objetoCercano === craneoF) {
+            craneoEncontrado = true;
+        }
+
+        if (objetoCercano === fuegoF) {
+            fuegoEncontrado = true;
+        }
+
+        if (objetoCercano === espadaF) {
+            espadaEncontrada = true;
+        }
+
+        if (objetoCercano === escudoF) {
+            escudoEncontrado = true;
+        }
+
+        if (objetoCercano === cuerdaF) {
+            cuerdaEncontrada = true;
+        }
+
+        objetoCercano.visible = false;
+
+        objetosRecolectados++;
+
+        contadorHTML.innerHTML =
+            "Objetos encontrados: " + objetosRecolectados + " / 5" +
+            "<br><span id='mensajeObjeto'></span>";
+
+        
+        mensajeHTML = document.getElementById("mensajeObjeto");
+
+        if (objetosRecolectados === 5) {
+            mensajeHTML.textContent =
+                "¡Encontraste todos los objetos de UMBRA! Ve al portal.";
+        } else {
+            mensajeHTML.textContent = "¡Objeto encontrado!";
+        }
+
+        objetoCercano = null;
+    }
+
+    // Recoger al presionar E
+    document.addEventListener("keydown", function(event) {
+
+        if (event.key.toLowerCase() === "e" && !event.repeat) {
+            recogerObjeto();
+        }
+
+    });
+
+    
+    // COMPROBAR SI EL PERSONAJE LLEGO AL PORTAL
+    function comprobarPortal() {
+
+        // Comprobar si el personaje esta cerca del portal
+        if (
+            Math.abs(personajeJugador.position.x - 2600) < 120 &&
+            personajeJugador.position.z >= -510 &&
+            personajeJugador.position.z <= 380
+        ) {
+
+            // Verificar si encontro los cinco objetos
+            if (objetosRecolectados === 5 && cambioDeMundo == false) {
+
+                cambioDeMundo = true;
+
+                mensajeHTML.textContent = "¡Portal activado! Viajando a IGNIS...";
+
+                window.location.href = "IGNIS.html";
+
+            } else if (objetosRecolectados < 5 && objetoCercano === null) {
+
+                mensajeHTML.textContent =
+                    "Encuentra los 5 objetos para activar el portal.";
+
+            }
+        }
+    }
+
+
+    
+    function seguirPersonaje() {
+        var posicionCamara = new THREE.Vector3(0,500,-400);
+
+        posicionCamara.applyQuaternion(personajeJugador.quaternion);
+        posicionCamara.add(personajeJugador.position);
+
+        camera.position.lerp(posicionCamara, 0.12);
+
+        camera.lookAt(
+            personajeJugador.position.x,
+            personajeJugador.position.y + 45,
+            personajeJugador.position.z
+        );
+    }
+
+   
+
+
+//🎰🎰Rendering y animación
+    requestAnimationFrame(render);
+    function render() {
+        animate();
+        world.step(1 / 60);// Actualizar el mundo fisico
+        FisicasAlGrafico();// Sincronizar el personaje
+        seguirPersonaje();
+        detectarObjetoCercano();// Detectar objetos cercanos
+
+        comprobarPortal(); //Comprueba si llego al portal
+
+        //ROTACION OBJETOS
+        craneoF.rotation.y += 0.03
+        fuegoF.rotation.y += 0.03
+        espadaF.rotation.y += 0.03
+        escudoF.rotation.y += 0.03
+        cuerdaF.rotation.y += 0.03
+  
+    //controls.update();
+
+        //Llamado para renderizar y volver a llamar a la misma función (render)
+        renderer.render(scene, camera);
+        requestAnimationFrame(render);
+    }
+</script>
+
+    <audio id="musicaFondo" autoplay loop preload="auto">
+        <source src="./audios/mundos.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        var musica = document.getElementById("musicaFondo");
+        musica.volume = 0.25;
+
+        // Intentar reproducir automáticamente
+        musica.play().catch(function() {
+            // Si el navegador lo bloquea, iniciar con el primer clic
+            document.addEventListener("click", function() {
+                musica.play();
+            }, { once: true });
+        });
+    </script>
+    
+</body>
+</html>

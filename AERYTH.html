@@ -1,0 +1,2138 @@
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+    <title>AERYTH</title>
+    <link rel="icon" href="./assets/logo.png">
+</head>
+<body>
+    <div id="contadorObjetos" style="
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        padding: 15px 20px;
+        color: white;
+        background: rgba(20, 10, 25, 0.85);
+        border: 2px solid #a77bff;
+        border-radius: 12px;
+        font-family: Arial, sans-serif;
+        z-index: 10;">
+        Objetos encontrados: 0 / 5
+        <br>
+        <span id="mensajeObjeto">Busca los objetos de IGNIS</span>
+    </div>
+    
+<canvas id="myCanvas">
+    <!--El elemento HTML canvas se puede utilizar para dibujar gráficos a través de 
+        secuencias de comandos (por lo general JavaScript ).-->
+</canvas>
+
+<!-- Aquí va todo el código de three.js -->
+<!-- script type="importmap" importa las librerías necesarias para three.js-->
+<script type="importmap"> 
+    {
+        "imports":{
+            "three": "./js/three.module.js",
+            "three/OrbitControls": "./js/OrbitControls.js",
+            "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@latest/dist/cannon-es.js",
+            "cannon-debugger":"https://github.com/pmndrs/cannon-es-debugger/blob/master/dist/cannon-es-debugger.js"
+        }
+}
+</script>
+<script type="module"> 
+//🗃️🗃️ Mandar llamar a la librería
+    import * as THREE from 'three'; 
+    import {OrbitControls} from 'three/OrbitControls';
+    console.log(OrbitControls);
+
+    import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@latest/dist/cannon-es.js';
+    import CannonDebugger from './js/cannon-es-debugger.js';
+
+    import {RoundedBoxGeometry} from "./js/RoundedBoxGeometry.js"
+    import { Water } from './js/Water.js';
+
+    import Stella from './js/Stella.js';
+    import Vesper from './js/Vesper.js';
+    import Ellowen from './js/Ellowen.js';
+
+
+//🕹️🕹️ Renderer - Realiza una conexión entre el código y el canvas
+    var renderer = new THREE.WebGLRenderer({
+    canvas: document.getElementById('myCanvas'), antialias: true,
+    });
+    renderer.setPixelRatio(window.decivePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0xEDCCFF);//ABD8FF
+
+
+// 🎬 Creando nueva escena - Es el espacio donde se colocan los objetos
+    var scene = new THREE.Scene();
+
+    // PERSONAJE SEGUN LA SELECCION
+    var personajeJugador = new THREE.Group();
+
+    var personajeSeleccionado = localStorage.getItem("personajeSeleccionado");
+    var personaje;
+
+    if (personajeSeleccionado === "vesper") {
+        personaje = Vesper(0, 0, 0);
+    } else if (personajeSeleccionado === "ellowen") {
+        personaje = Ellowen(0, 0, 0);
+    } else {
+        personaje = Stella(0, 0, 0);
+    }
+
+    personajeJugador.add(personaje);
+    scene.add(personajeJugador);
+
+    // OBTENER LAS PIERNAS DEL PERSONAJE ELEGIDO
+    var piernas1 = personaje.userData.piernas1;
+    var piernas2 = personaje.userData.piernas2;
+
+
+    var reloj = new THREE.Clock();
+    var velocidad = 15;
+    var amplitud = 0.50;
+
+
+    // MUNDO DE FISICA
+    const world = new CANNON.World();
+
+    world.broadphase = new CANNON.SAPBroadphase(world);
+    world.gravity.set(0, -500, 0);
+    world.defaultContactMaterial.friction = 0;
+
+    const groundMaterial = new CANNON.Material("groundMaterial");
+
+    const wheelMaterial = new CANNON.Material("wheelMaterial");
+    const wheelGroundMaterial = new CANNON.ContactMaterial(
+    wheelMaterial, groundMaterial,{
+    friction: 0.3,
+    restitution: 0,
+    contactEquationStiffness: 1000
+    });
+
+    world.addContactMaterial(wheelGroundMaterial);
+    //const cannonDebug = new CannonDebugger(scene, world);      
+
+    const groundBody = new CANNON.Body({
+        type: CANNON.Body.STATIC,
+        shape: new CANNON.Plane()
+    });
+
+    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+    groundBody.position.y = 0;
+
+    world.addBody(groundBody);
+
+//🎥🎥 Agregar una cámara de perspectiva
+    var camera = new THREE.PerspectiveCamera(75,window.innerWidth / window.innerHeight,0.1,10000);
+    scene.add(camera);
+
+    // Evento para redimensionar el canvas
+    // Sizes: Objeto donde se toman los tamaños interiores 'inner' de la ventana.
+    const sizes = {
+    width: window.innerWidth,
+    height: window.innerHeight,};
+    // Tomando el 'canvas' mediante el id 'myCanvas' del HTML para cambiar sus dimensiones
+    const canvas = document.getElementById('myCanvas');
+    // Evento que se ejecutará al redimensionar 'resize' nuestra ventana
+    window.addEventListener('resize', () => {
+    // Actualizando los valores del objeto 'sizes' con las medidas internas de laventana
+    sizes.width = window.innerWidth;
+    sizes.height = window.innerHeight;
+    // Actualización de los valores en la cámara como la relación-aspecto y la
+    //matriz de proyección.
+    camera.aspect = sizes.width / sizes.height;
+    camera.updateProjectionMatrix();
+    // Aplicando al render el nuevo tamaño del 'viewport'
+    renderer.setSize(sizes.width, sizes.height);
+    });
+
+        const gridHelper = new THREE.GridHelper( 50, 10 );
+        const axesHelper = new THREE.AxesHelper( 50 );
+
+    // COLISIONADOR DEL PERSONAJE
+    const stellaShape = new CANNON.Cylinder(50, 50, 300, 15);
+
+    const stellaBody = new CANNON.Body({
+        mass: 1,
+        material: groundMaterial,
+        position: new CANNON.Vec3(0,700,-3000)
+    });
+
+    // COLOCAR EL CILINDRO A LA ALTURA DEL PERSONAJE
+    stellaBody.addShape(
+        stellaShape,
+        new CANNON.Vec3(0,180,0)
+    );
+
+    world.addBody(stellaBody);
+
+    stellaBody.addEventListener('collide', function(event) {
+        var contact = event.contact;
+
+        if (!contact || !contact.ni) return;
+
+        var normal = contact.ni;
+
+        if (contact.bi.id === stellaBody.id) {
+            normal = normal.scale(-1);
+        }
+
+        if (normal.y > 0.5) {
+            puedeSaltar = true;
+        }
+    });
+
+
+    // MOVIMIENTO DEL PERSONAJE
+    const moveSpeed = 150;
+    const rotar = 5;
+    const keys = {};
+
+    window.addEventListener('keydown', function(event) {
+        if (event.code === 'Space') {event.preventDefault();
+    }
+        keys[event.code] = true;
+    });
+
+    window.addEventListener('keyup', function(event) {
+        keys[event.code] = false;
+    });
+
+    const acelerar = 15;
+    const desacelerar = 10;
+
+    let currentSpeed = 0;
+    let puedeSaltar = false;
+    const saltoF = 500;
+
+    // ANIMACION DE MOVIMIENTO
+    function animate() {
+        var forward = new THREE.Vector3(0, 0, -1);
+
+        personajeJugador.getWorldDirection(forward);
+        forward.normalize();
+
+        // CAMINAR HACIA ADELANTE
+        if (keys['KeyW']) {
+            currentSpeed = Math.min(currentSpeed + acelerar, moveSpeed);
+
+            piernas1.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 2)) * amplitud;
+
+            piernas2.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 2)) * -amplitud;
+        }
+
+        // CAMINAR HACIA ATRÁS
+        else if (keys['KeyS']) {
+            currentSpeed = Math.max(currentSpeed - acelerar, -moveSpeed);
+
+            piernas1.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 2)) * -amplitud;
+
+            piernas2.rotation.x = Math.cos(reloj.getElapsedTime() * (velocidad * 2)) * amplitud;
+        }
+
+        // DETENER ANIMACIÓN DE LAS PIERNAS
+        else {
+            piernas1.rotation.x = 0;
+            piernas2.rotation.x = 0;
+
+            if (currentSpeed > 0) {
+                currentSpeed = Math.max(currentSpeed - desacelerar, 0);
+            } else if (currentSpeed < 0) {
+                currentSpeed = Math.min(currentSpeed + desacelerar, 0);
+            }
+        }
+
+        // MOVIMIENTO FÍSICO
+        stellaBody.velocity.set(
+            forward.x * currentSpeed,
+            stellaBody.velocity.y,
+            forward.z * currentSpeed
+        );
+
+        // GIRAR
+        if (keys['KeyA']) {
+            stellaBody.angularVelocity.y = rotar;
+        } else if (keys['KeyD']) {
+            stellaBody.angularVelocity.y = -rotar;
+        } else {
+            stellaBody.angularVelocity.y = 0;
+        }
+
+        // SALTAR CON ESPACIO
+        if (keys['Space'] && puedeSaltar) {
+            stellaBody.velocity.y = saltoF;
+            puedeSaltar = false;
+        }
+
+        stellaBody.angularVelocity.x = 0;
+        stellaBody.angularVelocity.z = 0;
+
+        stellaBody.quaternion.x = 0;
+        stellaBody.quaternion.z = 0;
+
+        // ACTUALIZAR POSICIÓN DEL PERSONAJE
+        personajeJugador.position.copy(stellaBody.position);
+        personajeJugador.quaternion.copy(stellaBody.quaternion);
+
+        //cannonDebug.update();
+    }
+
+
+    // SINCRONIZstellaBody.addEventListenerAR FISICA Y GRAFICO
+    function FisicasAlGrafico() {
+    personajeJugador.position.set(
+        stellaBody.position.x,
+        stellaBody.position.y +5,
+        stellaBody.position.z
+    );
+
+    personajeJugador.quaternion.copy(stellaBody.quaternion);
+    }
+
+ 
+
+// Espacio para colocar los objetos
+
+/// 💫 LUCES 🔦
+    var light1 = new THREE.AmbientLight(0xffffff,0.7);
+    light1.position.set(0,50,0);
+    //scene.add(light1);
+
+    var light2 = new THREE.DirectionalLight(0x00ffff,0.5);
+    light2.position.set(0,30,0);
+    //scene.add(light2);
+
+    var light3 = new THREE.HemisphereLight(0xffffff,0xffffff,1);
+    light3.position.set(50,50,0);
+    scene.add(light3)
+
+//MUNDO AERYTH
+    //SUELO BASE AGUA
+    var base = new THREE.BoxGeometry(5000,.2,5000);
+    var colorbase = new THREE.MeshLambertMaterial({color:0x202033});
+    var agua = new THREE.Mesh(base,colorbase);
+   // scene.add(agua); 
+    //suelo.receiveShadow = true;
+
+     var geometriaawa = new THREE.BoxGeometry(5000,.2, 5000);
+
+        var awa = new Water (base, {
+          textureWidth: 1024,
+					textureHeight: 1024,
+					waterNormals: new THREE.TextureLoader().load( './assets/waternormals.jpg', function ( texture ) {
+					texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        } ),
+
+					sunDirection: new THREE.Vector3(),
+					sunColor: 0xffffff,
+					waterColor: 0x63AFFF,
+          //waterColor: 0x00ff00,
+					distortionScale: 2.5,
+					fog: scene.fog !== undefined
+        });
+        awa.position.set(0, -5, 0);
+        //awa.rotation.x = -1.5708;
+
+  
+        scene.add(awa);
+
+    //MONTAÑA 1
+    var cilindro1 = new THREE.CylinderGeometry(700,200,700,300);
+    var textura01 = new THREE.TextureLoader().load("./assets/tpiedra.png");
+    var material1 = new THREE.MeshLambertMaterial({map:textura01});
+    var montaña1 = new THREE.Mesh(cilindro1,material1);
+    scene.add(montaña1);
+    montaña1.position.set(2100,-220,1100);
+
+    var cilindro2 = new THREE.CylinderGeometry(600,200,700,300);
+    var montaña2 = new THREE.Mesh(cilindro2,material1);
+    scene.add(montaña2);
+    montaña2.position.set(430,-220,1700);
+
+    var cilindro3 = new THREE.CylinderGeometry(500,200,700,300);
+    var montaña3 = new THREE.Mesh(cilindro3,material1);
+    scene.add(montaña3);
+    montaña3.position.set(-700,-230,1700);
+
+    var montaña4 = new THREE.Mesh(cilindro2,material1);
+    scene.add(montaña4);
+    montaña4.position.set(-2600,-230,-300);
+    montaña4.scale.set(1.3,1,2)
+
+    var cilindro4 = new THREE.CylinderGeometry(500,400,700,300);
+    var montaña5 = new THREE.Mesh(cilindro4,material1);
+    scene.add(montaña5);
+    montaña5.position.set(0,30,-2000);
+    montaña5.scale.set(2,1.3,1);
+
+    var montaña6 = new THREE.Mesh(cilindro4,material1);
+    scene.add(montaña6);
+    montaña6.position.set(0,180,-3300);
+    montaña6.scale.set(2.5,1.5,1.5)
+
+
+    
+    //SUELO CAMINO
+    var textura02 = new THREE.TextureLoader().load("./assets/piedra.png");
+    var material2 = new THREE.MeshLambertMaterial({map:textura02});
+    var cubo1 = new THREE.BoxGeometry(550,150,800,800,100,200);
+    var pizo1 = new THREE.Mesh(cubo1,material2);
+    scene.add(pizo1);
+    pizo1.position.set(1180,50,1300);
+    pizo1.rotation.set(0,0.3,0);
+
+    var pizo2 = new THREE.Mesh(cubo1,material2);
+    scene.add(pizo2);
+    pizo2.position.set(870,50,600);
+    pizo2.rotation.set(0,0.5,0);
+
+    var sphere1 = new THREE.SphereGeometry(500,30,30);
+    var pizo3 = new THREE.Mesh(sphere1,material2);
+    scene.add(pizo3);
+    pizo3.position.set(1280,120,850);
+    pizo3.scale.set(0.5,0.03,0.5);
+
+    var pizo4 = new THREE.Mesh(cubo1,material2);
+    scene.add(pizo4);
+    pizo4.position.set(440,50,20);
+    pizo4.rotation.set(0,0.8,0);
+   
+    var pizo5 = new THREE.Mesh(cubo1,material2);
+    scene.add(pizo5);
+    pizo5.position.set(-100,50,-250);
+    pizo5.rotation.set(0,1.4,0);
+
+    var pizo6 = new THREE.Mesh(cubo1,material2);
+    scene.add(pizo6);
+    pizo6.position.set(-800,50,-300);
+    pizo6.rotation.set(0,1.6,0);
+
+    var pizo7 = new THREE.Mesh(cubo1,material2);
+    scene.add(pizo7);
+    pizo7.position.set(-1600,50,-280);
+    pizo7.rotation.set(0,1.6,0);
+
+    var cubo01 = new THREE.BoxGeometry(900,150,800,800,100,200);
+    var pizo8 = new THREE.Mesh(cubo01,material2);
+    scene.add(pizo8);
+    pizo8.position.set(0,50,-800);
+    pizo8.rotation.set(0,0,0);
+   
+
+    var color1 = new THREE.MeshLambertMaterial({color:0xe0c3cb});
+    var color2 = new THREE.MeshLambertMaterial({color:0xc2a8af});
+
+    //ESCALERAS
+    var cubo2 = new THREE.BoxGeometry(700,165,160,30,10,10);
+    var color11 = new THREE.MeshLambertMaterial({color:0xB6A2BD});
+    var escaleras1 = new THREE.Mesh(cubo2,color11);
+    //scene.add(escaleras1);
+    escaleras1.position.set(0,50,10);
+    //escaleras1.rotation.set(0,0.3,0);
+
+    var textura03 = new THREE.TextureLoader().load("./assets/escaleras.png");
+    var material3 = new THREE.MeshLambertMaterial({map:textura03});
+    var cubo3 = new THREE.BoxGeometry(850,155,155,30,10,10);
+    var escaleras01 = new THREE.Mesh(cubo3,material3);
+    //scene.add(escaleras01);
+    escaleras01.position.set(0,50,0);
+    //escaleras01.rotation.set(0,0.3,0);
+
+        //AGRUPAR ESCALERA
+        var escalon1 = new THREE.Group();
+        escalon1.add(escaleras1,escaleras01);
+        scene.add(escalon1);
+        escalon1.position.set(0,110,-1200);
+
+        var escalon2 = escalon1.clone();
+        escalon2.position.set(0,250,-1300);
+        scene.add(escalon2);
+
+        var escalon3 = escalon1.clone();
+        escalon3.position.set(0,350,-1400);
+        scene.add(escalon3);
+
+        var escalon4 = escalon1.clone();
+        escalon4.position.set(0,500,-2505);
+        scene.add(escalon4);
+        
+        // COLISIONES DE LAS ESCALERAS
+        function colisionEscalera(x, y, z) {
+
+            var cuerpoEscalera = new CANNON.Body({mass: 0});
+
+            var formaEscalera = new CANNON.Box(
+                new CANNON.Vec3(425, 90, 80)
+            );
+
+            cuerpoEscalera.addShape(formaEscalera);
+
+            cuerpoEscalera.position.set(x, y + 27.5, z);
+
+            world.addBody(cuerpoEscalera);
+        }
+
+        // COLISIONES DE CADA ESCALERA
+        colisionEscalera(0, 110, -1200);
+        colisionEscalera(0, 250, -1300);
+        colisionEscalera(0, 350, -1400);
+        colisionEscalera(0, 500, -2505);
+
+    //PASTO
+    var sphere2 = new THREE.SphereGeometry(780,30,10);
+    var color3 = new THREE.MeshLambertMaterial({color:0x489926});
+    var pasto1 = new THREE.Mesh(sphere2,color3);
+    scene.add(pasto1);
+    pasto1.position.set(2100,128,1100);
+    pasto1.scale.set(0.88,0.05,0.88);
+
+    var pasto2 = new THREE.Mesh(sphere2,color3);
+    scene.add(pasto2);
+    pasto2.position.set(430,130,1700);
+    pasto2.scale.set(0.78,0.05,0.78);
+
+    var pasto3 = new THREE.Mesh(sphere2,color3);
+    scene.add(pasto3);
+    pasto3.position.set(-700,130,1700);
+    pasto3.scale.set(0.65,0.05,0.65);
+
+    var pasto4 = new THREE.Mesh(sphere2,color3);
+    scene.add(pasto4);
+    pasto4.position.set(-2600,135,-300);
+    pasto4.scale.set(1,0.05,1.5);
+
+    var pasto5 = new THREE.Mesh(sphere2,color3);
+    scene.add(pasto5);
+    pasto5.position.set(0,480,-2000);
+    pasto5.scale.set(1.2,0.05,0.65);
+
+    var pasto6 = new THREE.Mesh(sphere2,color3);
+    scene.add(pasto6);
+    pasto6.position.set(0,700,-3300);
+    pasto6.scale.set(1.6,0.05,0.95);
+
+    var pasto7 = new THREE.Mesh(sphere2,color3);
+    scene.add(pasto7);
+    pasto7.position.set(1280,120,850);
+    pasto7.scale.set(0.3,0.05,0.3);
+
+
+        // OBSTÁCULOS DE LOS PASTOS
+        const obstacles = [pasto1,pasto2,pasto3,pasto4,pasto5,pasto6,pasto6,pizo3];
+        obstacles.forEach(obstacle => {
+
+            // Crear la forma física de un cilindro
+            const obstacleShape = new CANNON.Cylinder(
+                600, // Radio superior
+                650, // Radio inferior
+                10, // Altura
+                10    // Segmentos
+            );
+
+            // Crear el cuerpo físico estático
+            const obstacleBody = new CANNON.Body({
+                mass: 0,
+                type: CANNON.Body.STATIC
+            });
+
+            obstacleBody.addShape(obstacleShape);
+
+            // Igualar la posición de la piedra
+            obstacleBody.position.set(
+                obstacle.position.x,
+                obstacle.position.y,
+                obstacle.position.z
+            );
+
+            // Agregar el obstáculo al mundo físico
+            world.addBody(obstacleBody);
+
+        });
+   
+        const obstacles1 = [pizo1,pizo2,pizo4,pizo5,pizo6,pizo7,pizo8];
+            obstacles1.forEach(obstacle1 => {
+            const obstacle1Shape = new CANNON.Box(new CANNON.Vec3(
+                obstacle1.geometry.parameters.width / 2,
+                obstacle1.geometry.parameters.height / 2,
+                obstacle1.geometry.parameters.depth / 2));
+
+            const obstacle1Body = new CANNON.Body({ mass: 0 }); 
+            obstacle1Body.addShape(obstacle1Shape);
+            obstacle1Body.position.copy(obstacle1.position);
+
+            const quat = new CANNON.Quaternion();
+            quat.setFromEuler( obstacle1.rotation.x, obstacle1.rotation.y,
+            obstacle1.rotation.z, "XYZ");
+            obstacle1Body.quaternion.set(quat.x, quat.y, quat.z,quat.w);
+            world.addBody(obstacle1Body);
+        }); 
+
+
+    //ARBOLES TRONCO
+    var cilindro5 = new THREE.CylinderGeometry(70,170,700,300);
+    var color4 = new THREE.MeshLambertMaterial({color:0x5C4106});
+    var tronco1 = new THREE.Mesh(cilindro5,color4);
+    scene.add(tronco1);
+    tronco1.position.set(0,280,0);
+
+    //RAMAS
+    var cilindro6 = new THREE.CylinderGeometry(20,50,200,30);
+    var color5 = new THREE.MeshLambertMaterial({color:0x704F0D});
+    var rama1 = new THREE.Mesh(cilindro6,color5);
+    //scene.add(rama1);
+    rama1.position.set(-180,350,0);
+    rama1.rotation.set(0,0,1);
+
+    var rama2 = new THREE.Mesh(cilindro6,color5);
+    //scene.add(rama2);
+    rama2.position.set(180,350,0);
+    rama2.rotation.set(0,0,-1);
+
+    var rama3 = new THREE.Mesh(cilindro6,color5);
+    //scene.add(rama3);
+    rama3.position.set(0,350,180);
+    rama3.rotation.set(1,0,0);
+
+    var rama4 = new THREE.Mesh(cilindro6,color5);
+    //scene.add(rama4);
+    rama4.position.set(0,350,-180);
+    rama4.rotation.set(-1,0,0);
+
+    //ARBUSTO
+    var sphere3 = new THREE.SphereGeometry(350,20,5);
+    var color6 = new THREE.MeshLambertMaterial({color:0xCF61A6});
+    var bola1 = new THREE.Mesh(sphere3,color6);
+    //scene.add(bola1);
+    bola1.position.set(0,850,0);
+
+    var sphere4 = new THREE.SphereGeometry(300,20,5);
+    var color7 = new THREE.MeshLambertMaterial({color:0xFF78CC});
+    var bola2 = new THREE.Mesh(sphere4,color7);
+    //scene.add(bola2);
+    bola2.position.set(400,600,0);
+    bola2.scale.set(0.95,0.95,0.95);
+
+    var bola3 = new THREE.Mesh(sphere4,color7);
+    //scene.add(bola3);
+    bola3.position.set(-400,600,0);
+    bola3.scale.set(0.95,0.95,0.95);
+
+    var bola4 = new THREE.Mesh(sphere4,color7);
+    //scene.add(bola4);
+    bola4.position.set(0,600,400);
+    bola4.scale.set(0.95,0.95,0.95);
+
+    var bola5 = new THREE.Mesh(sphere4,color7);
+    //scene.add(bola5);
+    bola5.position.set(0,600,-400);
+    bola5.scale.set(0.95,0.95,0.95);
+
+        //AGRUPAR ARBOL
+        var arbol1 = new THREE.Group();
+        arbol1.add(tronco1,rama1,rama2,rama3,rama4,bola1,bola2,bola3,bola4,bola5);
+        scene.add(arbol1);
+        arbol1.position.set(2300,220,1100);
+
+        var arbol2 = arbol1.clone();
+        arbol2.position.set(275,150,1900);
+        scene.add(arbol2);
+        arbol2.scale.set(0.5,0.5,0.5);
+
+        var arbol3 = arbol1.clone();
+        arbol3.position.set(-850,150,1850);
+        scene.add(arbol3);
+        arbol3.scale.set(0.75,0.75,0.75);
+
+        // FUNCION PARA COLISIONES DE ARBOLES
+        function colisionArbol(x, y, z, escala) {
+
+            var cuerpoArbol = new CANNON.Body({
+                mass: 0
+            });
+
+            var formaArbol = new CANNON.Box(
+                new CANNON.Vec3(
+                    170 * escala,
+                    350 * escala,
+                    170 * escala
+                )
+            );
+
+            cuerpoArbol.addShape(formaArbol);
+
+            cuerpoArbol.position.set(
+                x,
+                y + (280 * escala),
+                z
+            );
+
+            world.addBody(cuerpoArbol);
+        }
+
+
+        // COLISIONES DE LOS ARBOLES
+        colisionArbol(2300, 220, 1100, 1);
+        colisionArbol(275, 150, 1900, 0.5);
+        colisionArbol(-850, 150, 1850, 0.75);
+
+
+    //BASE DE PIEDRA CON DIAMANTE
+    var cubo4 = new THREE.BoxGeometry(70,20,70,30,10,10);
+    var piedrabase = new THREE.Mesh(cubo4,color2);
+    //scene.add(piedrabase);
+    piedrabase.position.set(0,50,0);
+
+    var cubo5 = new THREE.BoxGeometry(50,60,50,30,10,10);
+    var piedraen = new THREE.Mesh(cubo5,color1);
+    //scene.add(piedraen);
+    piedraen.position.set(0,80,0);
+   
+    var piedraarriba = new THREE.Mesh(cubo4,color2);
+    //scene.add(piedraarriba);
+    piedraarriba.position.set(0,110,0);
+
+    var geometry1 = new THREE.OctahedronGeometry(1,0);
+    var color8 = new THREE.MeshLambertMaterial({color:0xFF80F1});// diamante rosa
+    var piedradiama = new THREE.Mesh(geometry1,color8);
+    //scene.add(piedradiama );
+    piedradiama.position.set(0,140,0);
+    piedradiama.scale.set(35,40,35);
+
+        //AGRUPAR PIEDRA
+        var piedra1 = new THREE.Group();
+        piedra1.add(piedraarriba,piedrabase,piedraen,piedradiama);
+        scene.add(piedra1);
+        piedra1.position.set(850,50,1000);
+        piedra1.scale.set(1.8,1.8,1.8);
+        piedra1.rotation.set(0,0.5,0);
+
+        var piedra2 = piedra1.clone();
+        piedra2.position.set(1200,50,700);
+        scene.add(piedra2);
+        
+    //BASE DE PIEDRA CON DIAMANTE
+    var piedrabase2 = new THREE.Mesh(cubo4,color2);
+    //scene.add(piedrabase2);
+    piedrabase2.position.set(0,50,0);
+
+    var piedraen2 = new THREE.Mesh(cubo5,color1);
+    //scene.add(piedraen2);
+    piedraen2.position.set(0,80,0);
+   
+    var piedraarriba2 = new THREE.Mesh(cubo4,color2);
+    //scene.add(piedraarriba2);
+    piedraarriba2.position.set(0,110,0);
+
+    var geometry1 = new THREE.OctahedronGeometry(1,0);
+    var piedradiama2 = new THREE.Mesh(geometry1,color8);
+    //scene.add(piedradiama2);
+    piedradiama2.position.set(0,140,0);
+    piedradiama2.scale.set(35,40,35);
+
+        //AGRUPAR PIEDRA
+        var piedra3 = new THREE.Group();
+        piedra3.add(piedraarriba2,piedrabase2,piedraen2,piedradiama2);
+        scene.add(piedra3);
+        piedra3.position.set(380,50,-700);
+        piedra3.scale.set(1.8,1.8,1.8);
+
+        var piedra4 = piedra3.clone();
+        piedra4.position.set(-380,50,-700);
+        scene.add(piedra4);
+
+        var piedra5 = piedra3.clone();
+        piedra5.position.set(-750,420,-2000);
+        scene.add(piedra5);
+
+        var piedra6 = piedra3.clone();
+        piedra6.position.set(750,420,-2000);
+        scene.add(piedra6);
+
+        var piedra7 = piedra3.clone();
+        piedra7.position.set(400,650,-2800);
+        scene.add(piedra7);
+
+        var piedra8 = piedra3.clone();
+        piedra8.position.set(-400,650,-2800);
+        scene.add(piedra8);
+
+        // FUNCION PARA COLISIONES DE PIEDRAS
+        function colisionPiedra(x, y, z, escala) {
+
+            var cuerpoPiedra = new CANNON.Body({ mass: 0  });
+
+            var formaPiedra = new CANNON.Box(
+                new CANNON.Vec3(
+                    50 * escala,
+                    50 * escala,
+                    50 * escala
+                )
+            );
+
+            cuerpoPiedra.addShape(formaPiedra);
+
+            cuerpoPiedra.position.set(
+                x,
+                y + (80 * escala),
+                z
+            );
+
+            world.addBody(cuerpoPiedra);
+        }
+
+            // COLISIONES DE LAS PIEDRAS
+            colisionPiedra(850, 50, 1000, 1.8);
+            colisionPiedra(1200, 50, 700, 1.8);
+
+            colisionPiedra(380, 50, -700, 1.8);
+            colisionPiedra(-380, 50, -700, 1.8);
+
+            colisionPiedra(-750, 420, -2000, 1.8);
+            colisionPiedra(750, 420, -2000, 1.8);
+
+            colisionPiedra(400, 650, -2800, 1.8);
+            colisionPiedra(-400, 650, -2800, 1.8);
+
+    //DIAMANTES AZULES
+    var cilindro7 = new THREE.CylinderGeometry(20,10,100,4);
+    var color9 = new THREE.MeshLambertMaterial({color:0x5ECDFF});//diamante azul
+    var diamanteaba = new THREE.Mesh(cilindro7,color9);
+    //scene.add(diamanteaba);
+    diamanteaba.position.set(0,0,0);
+    diamanteaba.scale.set(2.5,1.5,2.5);
+    
+    var geometry2 = new THREE.OctahedronGeometry(1,0);
+    var diamantepunta = new THREE.Mesh(geometry2,color9);
+    //scene.add(diamantepunta);
+    diamantepunta.position.set(0,75,0);
+    diamantepunta.scale.set(50,50,50);
+
+        //AGRUPAR DIAMANTE
+        var diamanteA1 = new THREE.Group();
+        diamanteA1.add(diamanteaba,diamantepunta);
+        scene.add(diamanteA1);
+        diamanteA1.position.set(1800,200,1000);
+
+        var diamanteA2 = diamanteA1.clone();
+        diamanteA2.position.set(1400,200,800);
+        scene.add(diamanteA2);
+
+        var diamanteA3 = diamanteA1.clone();
+        diamanteA3.position.set(-700,200,1400);
+        scene.add(diamanteA3);
+
+        var diamanteA4 = diamanteA1.clone();
+        diamanteA4.position.set(-2100,200,-1000);
+        scene.add(diamanteA4);//portal lateral
+        diamanteA4.scale.set(1.5,1,1.5);
+
+        var diamanteA5 = diamanteA1.clone();
+        diamanteA5.position.set(-2100,200,450);
+        scene.add(diamanteA5);//portal lateral
+        diamanteA5.scale.set(1.5,1,1.5);
+
+        var diamanteA6 = diamanteA1.clone();
+        diamanteA6.position.set(-1200,100,300);
+        scene.add(diamanteA6);//agua
+        diamanteA6.scale.set(2,1.5,2);
+
+        var diamanteA7 = diamanteA1.clone();
+        diamanteA7.position.set(2000,100,0);
+        scene.add(diamanteA7);//agua
+        diamanteA7.scale.set(2,1.5,2);
+
+        var diamanteA8 = diamanteA1.clone();
+        diamanteA8.position.set(-1800,100,-1500);
+        scene.add(diamanteA8);//agua
+        diamanteA8.scale.set(2,1.5,2);
+
+       // FUNCION PARA COLISIONES DE DIAMANTES
+        function colisionDiamante(x, y, z, escalaX, escalaY, escalaZ) {
+
+            var cuerpoDiamante = new CANNON.Body({mass: 0});
+
+            var formaDiamante = new CANNON.Box(
+                new CANNON.Vec3(
+                    50 * escalaX,
+                    100 * escalaY,
+                    50 * escalaZ
+                )
+            );
+
+            cuerpoDiamante.addShape(formaDiamante);
+
+            cuerpoDiamante.position.set(
+                x,
+                y + (25 * escalaY),
+                z
+            );
+
+            world.addBody(cuerpoDiamante);
+        }
+
+        // COLISIONES DIAMANTES AZULES
+        colisionDiamante(1800, 200, 1000, 1, 1, 1);
+        colisionDiamante(1400, 200, 800, 1, 1, 1);
+        colisionDiamante(-700, 200, 1400, 1, 1, 1);
+        colisionDiamante(-2100, 200, -1000, 1.5, 1, 1.5);
+        colisionDiamante(-2100, 200, 450, 1.5, 1, 1.5);
+        colisionDiamante(-1200, 100, 300, 2, 1.5, 2);
+        colisionDiamante(2000, 100, 0, 2, 1.5, 2);
+        colisionDiamante(-1800, 100, -1500, 2, 1.5, 2);
+        
+
+    //DIAMANTES MORADOS
+    var cilindro8 = new THREE.CylinderGeometry(20,10,100,4);
+    var color10 = new THREE.MeshLambertMaterial({color:0xCB88FC});// diamante morado
+    var diamanteaba2 = new THREE.Mesh(cilindro8,color10);
+    //scene.add(diamanteaba2);
+    diamanteaba2.position.set(0,0,0);
+    diamanteaba2.scale.set(2.5,1.5,2.5);
+    
+    var geometry2 = new THREE.OctahedronGeometry(1,0);
+    var diamantepunta2 = new THREE.Mesh(geometry2,color10);
+    //scene.add(diamantepunta2);
+    diamantepunta2.position.set(0,75,0);
+    diamantepunta2.scale.set(50,50,50);
+
+        //AGRUPAR DIAMANTE
+        var diamanteM1 = new THREE.Group();
+        diamanteM1.add(diamanteaba2,diamantepunta2);
+        scene.add(diamanteM1);
+        diamanteM1.position.set(2300,200,1400);
+        diamanteM1.scale.set(1.2,1.2,1.2);
+
+        var diamanteM2 = diamanteM1.clone();
+        diamanteM2.position.set(-700,200,1700);
+        scene.add(diamanteM2);
+        diamanteM2.scale.set(1.2,0.8,1.2);
+
+        var diamanteM3 = diamanteM1.clone();
+        diamanteM3.position.set(650,200,1800);
+        scene.add(diamanteM3);
+        diamanteM3.scale.set(1.2,1,1.2);
+        diamanteM3.rotation.set(0,0,-0.85);
+
+        var diamanteM4 = diamanteM1.clone();
+        diamanteM4.position.set(800,100,-600);
+        scene.add(diamanteM4);//agua
+        diamanteM4.scale.set(3,3,3);
+
+        var diamanteM5 = diamanteM1.clone();
+        diamanteM5.position.set(-120,100,700);
+        scene.add(diamanteM5);//agua
+        diamanteM5.scale.set(3,3,3);
+
+        var diamanteM6 = diamanteM1.clone();
+        diamanteM6.position.set(-2500,300,-1230);
+        scene.add(diamanteM6);//portal lateral
+        diamanteM6.scale.set(2,2.5,2);
+
+        var diamanteM7 = diamanteM1.clone();
+        diamanteM7.position.set(-2500,300,700);
+        scene.add(diamanteM7);//portal lateral
+        diamanteM7.scale.set(2,2.5,2);
+
+        // COLISIONES DIAMANTES MORADOS
+        colisionDiamante(2300, 200, 1400, 1.2, 1.2, 1.2);
+        colisionDiamante(-700, 200, 1700, 1.2, 0.8, 1.2);
+        colisionDiamante(650, 200, 1800, 1.2, 1, 1.2);
+        colisionDiamante(800, 100, -600, 3, 3, 3);
+        colisionDiamante(-120, 100, 700, 3, 3, 3);
+        colisionDiamante(-2500, 300, -1230, 2, 2.5, 2);
+        colisionDiamante(-2500, 300, 700, 2, 2.5, 2);
+
+
+    //DIAMANTES ROSAS
+    var cilindro08 = new THREE.CylinderGeometry(20,10,100,4);
+    var diamanteaba3 = new THREE.Mesh(cilindro8,color8);
+   // scene.add(diamanteaba3);
+    diamanteaba3.position.set(0,0,0);
+    diamanteaba3.scale.set(2.5,1.5,2.5);
+    
+    var geometry2 = new THREE.OctahedronGeometry(1,0);
+    var diamantepunta3 = new THREE.Mesh(geometry2,color8);
+    //scene.add(diamantepunta3);
+    diamantepunta3.position.set(0,75,0);
+    diamantepunta3.scale.set(50,50,50);
+
+       //AGRUPAR DIAMANTE
+        var diamanteR1 = new THREE.Group();
+        diamanteR1.add(diamanteaba3,diamantepunta3);
+        scene.add(diamanteR1);
+        diamanteR1.position.set(550,200,1700);
+        diamanteR1.scale.set(1.2,1.5,1.2);
+
+        var diamanteR2 = diamanteR1.clone();
+        diamanteR2.position.set(-900,200,1400);
+        scene.add(diamanteR2);
+        diamanteR2.scale.set(1.5,1.8,1.5);
+
+        var diamanteR3 = diamanteR1.clone();
+        diamanteR3.position.set(-1200,100,-1200);
+        scene.add(diamanteR3);
+        diamanteR3.scale.set(2,3,2);
+
+        var diamanteR4 = diamanteR1.clone();
+        diamanteR4.position.set(-1200,100,-1200);
+        scene.add(diamanteR4);//agua
+        diamanteR4.scale.set(3,3,3);
+
+        var diamanteR5 = diamanteR1.clone();
+        diamanteR5.position.set(-2300,250,650);
+        scene.add(diamanteR5);//portal lateral
+        diamanteR5.scale.set(1.5,1.5,1.5);
+
+        var diamanteR6 = diamanteR1.clone();
+        diamanteR6.position.set(-2300,250,-1150);
+        scene.add(diamanteR6);//portal lateral
+        diamanteR6.scale.set(1.5,1.5,1.5);
+
+        // COLISIONES DIAMANTES ROSAS
+        colisionDiamante(550, 200, 1700, 1.2, 1.5, 1.2);
+        colisionDiamante(-900, 200, 1400, 1.5, 1.8, 1.5);
+        colisionDiamante(-1200, 100, -1200, 2, 3, 2);
+        colisionDiamante(-1200, 100, -1200, 3, 3, 3);
+        colisionDiamante(-2300, 250, 650, 1.5, 1.5, 1.5);
+        colisionDiamante(-2300, 250, -1150, 1.5, 1.5, 1.5);
+
+
+    //PORTAL
+    var cilindro9 = new THREE.CylinderGeometry(500,500,300,300);
+    var color11 = new THREE.MeshLambertMaterial({color:0xB6A2BD});
+    var Baseportal = new THREE.Mesh(cilindro9,material3);
+    scene.add(Baseportal);
+    Baseportal.position.set(-2530,50,-250);
+    Baseportal.scale.set(1.2,1.2,1.7)
+   
+    //ESCALERA DEL PORTAL
+    var cubo6 = new THREE.BoxGeometry(160,165,450,30,10,10);
+    var escaPortal = new THREE.Mesh(cubo6,color11);
+    scene.add(escaPortal);
+    escaPortal.position.set(-1900,151,-280);
+
+    var textura03 = new THREE.TextureLoader().load("./assets/escaleras.png");
+    var material3 = new THREE.MeshLambertMaterial({map:textura03});
+    var cubo7 = new THREE.BoxGeometry(155,155,550,30,10,10);
+    var escPortal = new THREE.Mesh(cubo7,material3);
+    scene.add(escPortal);
+    escPortal.position.set(-1900,150,-280);
+        
+
+        const obstacles2 = [Baseportal];
+        obstacles2.forEach(obstacle2 => {
+
+            // Crear la forma física de un cilindro
+            const obstacle2Shape = new CANNON.Cylinder(
+                700, // Radio superior
+                700, // Radio inferior
+                350, // Altura
+                10    // Segmentos
+            );
+
+            // Crear el cuerpo físico estático
+            const obstacle2Body = new CANNON.Body({
+                mass: 0,
+                type: CANNON.Body.STATIC
+            });
+
+            obstacle2Body.addShape(obstacle2Shape);
+
+            // Igualar la posición de la piedra
+            obstacle2Body.position.set(
+                obstacle2.position.x,
+                obstacle2.position.y,
+                obstacle2.position.z
+            );
+
+            // Agregar el obstáculo al mundo físico
+            world.addBody(obstacle2Body);
+
+        });
+    
+    
+    //BASE DE PIEDRA CON DIAMANTE PARA PORTAL
+    var cubo8 = new THREE.BoxGeometry(250,30,250,30,10,10);
+    var Pbase = new THREE.Mesh(cubo8,color2);
+    //scene.add(Pbase);
+    Pbase.position.set(0,0,0);
+    
+    var cubo9 = new THREE.BoxGeometry(220,60,220,30,10,10);
+    var Pbase1 = new THREE.Mesh(cubo9,color1);
+    //scene.add(Pbase1);
+    Pbase1.position.set(0,40,0);
+
+    var cubo10 = new RoundedBoxGeometry(200,30,200,50,20);
+    var color12= new THREE.MeshLambertMaterial({color:0xD9B407});//color amarrillo
+    var Pbase2 = new THREE.Mesh(cubo10,color12);
+    //scene.add(Pbase2);
+    Pbase2.position.set(0,80,0);
+
+    var cubo11 = new THREE.BoxGeometry(160,850,160,30,10,10);
+    var Penmedio = new THREE.Mesh(cubo11,color1);
+    //scene.add(Penmedio);
+    Penmedio.position.set(0,500,0);
+   
+    var cubo12 = new RoundedBoxGeometry(200,80,200,10,10);
+    var Parriba = new THREE.Mesh(cubo12,color2);
+    //scene.add(Parriba);
+    Parriba.position.set(0,900,0);
+
+    var geometry3 = new THREE.OctahedronGeometry(1,0);
+    var color8 = new THREE.MeshLambertMaterial({color:0xFF80F1});// diamante rosa
+    var piedraP = new THREE.Mesh(geometry3,color8);
+    //scene.add(piedraP );
+    piedraP.position.set(0,1000,0);
+    piedraP.scale.set(100,120,100);
+
+    var geometry4 = new THREE.OctahedronGeometry(1,0);
+    var piedraP1 = new THREE.Mesh(geometry4,color8);
+    //scene.add(piedraP1);
+    piedraP1.position.set(80,700,0);
+    piedraP1.scale.set(10,70,60);
+
+
+        //AGRUPAR LATERAL DEL PORTAL 
+        var lateralP1 = new THREE.Group();
+        lateralP1.add(Pbase,Pbase1,Pbase2,Penmedio,Parriba,piedraP,piedraP1);
+        scene.add(lateralP1);
+        lateralP1.position.set(-2650,250,270);
+        
+        var lateralP2 = lateralP1.clone();
+        lateralP2.position.set(-2650,250,-800);
+        scene.add(lateralP2);
+
+    
+    
+    // ARCO DEL PORTAL
+    var cubo13 = new THREE.BoxGeometry(160,500,160,30,10,10);
+    var arco1 = new THREE.Mesh(cubo13,color1);//LADO
+    //scene.add(arco1);
+    arco1.position.set(0,500,80);
+   
+    var arco2 = new THREE.Mesh(cubo13,color1);//OTRO LADO
+    //scene.add(arco2);
+    arco2.position.set(0,500,-600);
+
+    var cubo14 = new THREE.BoxGeometry(160,160,160,50,10,10);
+    var arco3 = new THREE.Mesh(cubo14,color1);//ARCO
+    //scene.add(arco3);
+    arco3.position.set(0,780,50);
+    arco3.rotation.set(-0.5,0,0);
+
+    var arco4 = new THREE.Mesh(cubo14,color1);//ARCO
+    //scene.add(arco4);
+    arco4.position.set(0,870,-12);
+    arco4.rotation.set(-0.7,0,0);
+
+    var arco5 = new THREE.Mesh(cubo14,color1);//ARCO
+    //scene.add(arco5);
+    arco5.position.set(0,950,-80);
+    arco5.rotation.set(-0.8,0,0);
+
+    var arco6 = new THREE.Mesh(cubo14,color1);//ARCO
+    //scene.add(arco6);
+    arco6.position.set(0,1020,-150);
+    arco6.rotation.set(-0.8,0,0);
+
+    var arco7 = new THREE.Mesh(cubo14,color1);//ARCO
+    //scene.add(arco7);
+    arco7.position.set(0,780,-570);
+    arco7.rotation.set(0.5,0,0);
+
+    var arco8 = new THREE.Mesh(cubo14,color1);//ARCO
+    scene.add(arco8);
+    arco8.position.set(0,870,-510);
+    arco8.rotation.set(0.7,0,0);
+
+    var arco9 = new THREE.Mesh(cubo14,color1);//ARCO
+    //scene.add(arco9);
+    arco9.position.set(0,950,-430);
+    arco9.rotation.set(0.8,0,0);
+
+    var arco10 = new THREE.Mesh(cubo14,color1);//ARCO
+    //scene.add(arco10);
+    arco10.position.set(0,1020,-350);
+    arco10.rotation.set(0.8,0,0);
+
+    var arco11 = new THREE.Mesh(cubo14,color1);//ARCO
+    //scene.add(arco11);
+    arco11.position.set(0,1095,-250);
+    arco11.rotation.set(0.75,0,0);
+
+    var cubo15 = new THREE.BoxGeometry(100,715,510,50,10,10);
+    var textura04 = new THREE.TextureLoader().load("./assets/portal.png");
+    var material4 = new THREE.MeshLambertMaterial({map:textura04});
+    var portal = new THREE.Mesh(cubo15,material4);//centro portal
+    //scene.add(portal);
+    portal.position.set(0,625,-255);
+
+    var geometry5 = new THREE.OctahedronGeometry(1,0);
+    var DiamanteP = new THREE.Mesh(geometry5,color8);
+    //scene.add(DiamanteP);
+    DiamanteP.position.set(0,1080,-250);
+    DiamanteP.scale.set(150,120,100);
+
+    var DiamanteP1 = new THREE.Mesh(geometry5,color12);
+    //scene.add(DiamanteP1);
+    DiamanteP1.position.set(0,600,-600);
+    DiamanteP1.scale.set(150,120,80);
+
+    var DiamanteP2 = new THREE.Mesh(geometry5,color12);
+    //scene.add(DiamanteP2);
+    DiamanteP2.position.set(0,600,80);
+    DiamanteP2.scale.set(150,120,80);
+
+        //AGRUPAR PORTAL 
+        var portalF = new THREE.Group();
+        portalF.add(arco1,arco2,arco3,arco4,arco5,arco6,arco7,arco8,arco9,arco10,arco11,portal,DiamanteP,DiamanteP1,DiamanteP2);
+        scene.add(portalF);
+        portalF.position.set(-2650,-10,0);
+
+
+    
+    //ESTRUCTURA FONDO
+    var cubo16 = new THREE.BoxGeometry(160,700,160,30,10,10);
+    var torreFondo1 = new THREE.Mesh(cubo16,color1);//LADO
+   // scene.add(torreFondo1);
+    torreFondo1.position.set(-250,0,0);//LATERAL
+   
+    var torreFondo2 = new THREE.Mesh(cubo16,color1);//OTRO LADO
+   // scene.add(torreFondo2);
+    torreFondo2.position.set(250,0,0);//LATERAL
+
+    var cubo17 = new THREE.BoxGeometry(160,160,160,50,10,10);
+    var torreFondo3 = new THREE.Mesh(cubo17,color1);
+   // scene.add(torreFondo3);
+    torreFondo3.position.set(-220,380,0);//ARCO
+    torreFondo3.rotation.set(0,0,-0.5);
+
+    var torreFondo4 = new THREE.Mesh(cubo17,color1);
+    //scene.add(torreFondo4);
+    torreFondo4.position.set(-155,500,0);//ARCO
+    torreFondo4.rotation.set(0,0,-0.5);
+
+    var torreFondo5 = new THREE.Mesh(cubo17,color1);
+    //scene.add(torreFondo5);
+    torreFondo5.position.set(-93,600,0);//ARCO
+    torreFondo5.rotation.set(0,0,-0.6);
+
+    var torreFondo6 = new THREE.Mesh(cubo17,color1);
+   // scene.add(torreFondo6);
+    torreFondo6.position.set(220,380,0);//ARCO
+    torreFondo6.rotation.set(0,0,0.5);
+
+    var torreFondo7 = new THREE.Mesh(cubo17,color1);
+    //scene.add(torreFondo7);
+    torreFondo7.position.set(155,500,0);//ARCO
+    torreFondo7.rotation.set(0,0,0.5);
+
+    var torreFondo8 = new THREE.Mesh(cubo17,color1);
+   // scene.add(torreFondo8);
+    torreFondo8.position.set(93,600,0);//ARCO
+    torreFondo8.rotation.set(0,0,0.6);
+
+    var torreFondo9 = new THREE.Mesh(cubo17,color1);
+   // scene.add(torreFondo9);
+    torreFondo9.position.set(0,700,0);//ARCO PUNTA
+    torreFondo9.rotation.set(0,0,0.8);
+
+    var geometry6 = new THREE.OctahedronGeometry(1,0);
+    var DiamanteT = new THREE.Mesh(geometry6,color12);
+    //scene.add(DiamanteT);
+    DiamanteT.position.set(0,690,80);
+    DiamanteT.scale.set(75,85,10);
+
+    var DiamanteT0 = new THREE.Mesh(geometry6,color12);
+    //scene.add(DiamanteT0);
+    DiamanteT0.position.set(0,690,-80);
+    DiamanteT0.scale.set(75,85,10);
+
+    var DiamanteT1 = new THREE.Mesh(geometry6,color9);
+    //scene.add(DiamanteT1);
+    DiamanteT1.position.set(0,690,80);
+    DiamanteT1.scale.set(60,70,50);
+
+    var DiamanteT2 = new THREE.Mesh(geometry6,color9);
+    //scene.add(DiamanteT2);
+    DiamanteT2.position.set(0,690,-80);
+    DiamanteT2.scale.set(60,70,50);
+
+    var cubo18 = new THREE.BoxGeometry(350,650,100,50,10,10);
+    var material5 = new THREE.MeshLambertMaterial({
+        color: 0x8ADDFF,
+        transparent:true,
+        opacity:0.5});
+    var torreFondoC = new THREE.Mesh(cubo18,material5);
+   // scene.add(torreFondoC);
+    torreFondoC.position.set(0,0,-20);//CENTRO CRISTAL
+
+    var cilindro10 = new THREE.CylinderGeometry(0,10,100,4);
+    var torreFondoC1 = new THREE.Mesh(cilindro10,material5);
+    //scene.add(torreFondoC1);
+    torreFondoC1.position.set(0,420,0);//ARCO PUNTA
+    torreFondoC1.scale.set(33,5,1.5);
+
+        //AGRUPAR TORRE
+        var torreF = new THREE.Group();
+        torreF.add(torreFondo1,torreFondo2,torreFondo3,torreFondo4,torreFondo5,torreFondo6,torreFondo7,torreFondo8,torreFondo9,DiamanteT,DiamanteT0,DiamanteT1,DiamanteT2,torreFondoC,torreFondoC1);
+        scene.add(torreF);
+        torreF.position.set(0,1000,-3300);
+        torreF.scale.set(1,1.2,1);
+
+
+    //ESTRUCTURA DE ATRAS
+    var cubo18 = new THREE.BoxGeometry(70,400,70,30,10,10);
+    var estructuraF1= new THREE.Mesh(cubo18,color1);
+    //scene.add(estructuraF1);
+    estructuraF1.position.set(-100,0,0);
+
+    var estructuraF2 = new THREE.Mesh(cubo18,color1);
+    //scene.add(estructuraF2);
+    estructuraF2.position.set(100,0,0);
+
+    var estructuraF3 = new THREE.Mesh(cubo18,color1);
+    //scene.add(estructuraF3);
+    estructuraF3.position.set(100,0,200);
+    
+    var estructuraF4 = new THREE.Mesh(cubo18,color1);
+    //scene.add(estructuraF4);
+    estructuraF4.position.set(-100,0,200);
+
+    var cubo19 = new THREE.BoxGeometry(270,50,270,30,10,10);
+    var estructuraF5 = new THREE.Mesh(cubo19,color1);
+    //scene.add(estructuraF5);//TAPA
+    estructuraF5.position.set(0,200,100);
+
+    var cubo20 = new THREE.BoxGeometry(130,380,70,10,10);
+    var estructuraF6 = new THREE.Mesh(cubo20,material5);
+   // scene.add(estructuraF6);//CRITAL
+    estructuraF6.position.set(0,-10,200);
+
+    var estructuraF7 = new THREE.Mesh(cubo20,material5);
+    scene.add(estructuraF7);//CRITAL
+    estructuraF7.position.set(0,-10,0);
+
+    var cubo21 = new THREE.BoxGeometry(70,380,130,10,10);
+    var estructuraF8 = new THREE.Mesh(cubo21,material5);
+   // scene.add(estructuraF8);//CRITAL
+    estructuraF8.position.set(-100,-10,100);
+
+    var estructuraF9 = new THREE.Mesh(cubo21,material5);
+   // scene.add(estructuraF9);//CRITAL
+    estructuraF9.position.set(100,-10,100);
+
+    var cubo22 = new THREE.BoxGeometry(290,50,290,10,10);
+    var estructuraF10 = new THREE.Mesh(cubo22,color2);
+   // scene.add(estructuraF10);
+    estructuraF10.position.set(0,230,100);
+
+    //DIAMANTE
+    var cilindro11 = new THREE.CylinderGeometry(20,20,100,4);
+    var estructDiama1 = new THREE.Mesh(cilindro11,color10);
+    //scene.add(estructDiama1);
+    estructDiama1.position.set(0,0,0);
+    estructDiama1.scale.set(2.5,4,2.5);
+    
+    var geometry7 = new THREE.OctahedronGeometry(1,0);
+    var estructDiama2 = new THREE.Mesh(geometry7,color10);
+    //scene.add(estructDiama2);
+    estructDiama2.position.set(0,200,0);
+    estructDiama2.scale.set(50,100,50);
+
+        //AGRUPAR DIAMANTE
+        var estructDiamaF = new THREE.Group();
+        estructDiamaF.add(estructDiama1,estructDiama2);
+        //scene.add(estructDiamaF);
+        estructDiamaF.position.set(0,400,100);
+        estructDiamaF.scale.set(1,0.8,1);
+
+        //AGRUPAR DIAMANTE CON ESTRUCTURA
+        var estructuraFinal = new THREE.Group();
+        estructuraFinal.add(estructuraF1,estructuraF2,estructuraF3,estructuraF4,estructuraF5,estructuraF6,estructuraF7,estructuraF8,estructuraF9,estructuraF10,estructDiamaF);
+        scene.add(estructuraFinal);
+        estructuraFinal.position.set(-480,900,-3400);
+        //estructuraFinal.scale.set(1.2,1.2,1.2);
+
+        var estructuraFinal2 = estructuraFinal.clone();
+        estructuraFinal2.position.set(480,900,-3400);
+        scene.add(estructuraFinal2);
+
+    
+    //BASE DE PIEDRA  DEL FONDO
+    var cubo23 = new THREE.BoxGeometry(250,30,250,30,10,10);
+    var baseFon1 = new THREE.Mesh(cubo23,color2);
+   // scene.add(baseFon1);
+    baseFon1.position.set(0,0,0);
+    
+    var cubo24 = new THREE.BoxGeometry(220,60,220,30,10,10);
+    var baseFon2 = new THREE.Mesh(cubo24,color1);
+   // scene.add(Pbase1);
+    Pbase1.position.set(0,40,0);
+
+    var cubo25 = new RoundedBoxGeometry(200,30,200,50,20);
+    var baseFon3 = new THREE.Mesh(cubo25,color12);
+  //  scene.add(baseFon3);
+    baseFon3.position.set(0,80,0);
+
+    var cubo26 = new THREE.BoxGeometry(160,600,160,30,10,10);
+    var baseFon4 = new THREE.Mesh(cubo26,color1);
+   // scene.add(baseFon4);//enmedio
+    baseFon4.position.set(0,300,0);
+
+    var baseFon5 = new THREE.Mesh(cubo25,color12);
+   // scene.add(baseFon5);
+    baseFon5.position.set(0,600,0);
+    baseFon5.scale.set(1,1.5,1);
+   
+    var cubo27 = new RoundedBoxGeometry(200,80,200,10,10);
+    var cilindro12 = new THREE.CylinderGeometry(30,25,100,4);
+    var baseFon6 = new THREE.Mesh(cilindro12,color2);
+   // scene.add(baseFon6);
+    baseFon6.position.set(0,670,0);
+    baseFon6.scale.set(5,1,5);
+    baseFon6.rotation.set(0,0.8,0);
+
+    var geometry8 = new THREE.OctahedronGeometry(1,0);
+    var color8 = new THREE.MeshLambertMaterial({color:0xFF80F1});// diamante rosa
+    var baseFonPie1 = new THREE.Mesh(geometry8,color8);
+   // scene.add(baseFonPie1 );
+    baseFonPie1.position.set(0,700,0);
+    baseFonPie1.scale.set(100,120,100);
+
+    var geometry9 = new THREE.OctahedronGeometry(1,0);
+    var baseFonPie2 = new THREE.Mesh(geometry9,color9);
+    //scene.add(baseFonPie2);// diamante azul
+    baseFonPie2.position.set(80,450,0);
+    baseFonPie2.scale.set(10,40,30);
+
+    var baseFonPie3 = new THREE.Mesh(geometry9,color9);
+   // scene.add(baseFonPie3);// diamante azul
+    baseFonPie3.position.set(0,450,80);
+    baseFonPie3.scale.set(30,40,10);
+
+    var baseFonPie4 = new THREE.Mesh(geometry9,color9);
+    //scene.add(baseFonPie4);// diamante azul
+    baseFonPie4.position.set(-80,450,0);
+    baseFonPie4.scale.set(10,40,30);
+
+    var baseFonPie5 = new THREE.Mesh(geometry9,color9);
+   // scene.add(baseFonPie5);// diamante azul
+    baseFonPie5.position.set(0,450,-80);
+    baseFonPie5.scale.set(30,40,10);
+
+
+        //AGRUPAR LATERAL DEL PORTAL 
+        var baseFondoFinal1 = new THREE.Group();
+        baseFondoFinal1.add(baseFon1,baseFon2,baseFon3,baseFon4,baseFon5,baseFon6,baseFonPie1,baseFonPie2,baseFonPie3,baseFonPie4,baseFonPie5);
+        scene.add(baseFondoFinal1);
+        baseFondoFinal1.position.set(800,750,-3000);
+        
+        var baseFondoFinal2 = baseFondoFinal1.clone();
+        baseFondoFinal2.position.set(-800,750,-3000);
+        scene.add(baseFondoFinal2);
+
+
+    
+    var sphere6 = new THREE.SphereGeometry(350,20,5);
+    var color13 = new THREE.MeshLambertMaterial({color:0xE3F1FC});
+    var nube1 = new THREE.Mesh(sphere6,color13);
+    //scene.add(nube1);
+    nube1.position.set(0,0,0);
+
+    var nube2 = new THREE.Mesh(sphere6,color13);
+    //scene.add(nube2);
+    nube2.position.set(200,-100,0);
+    nube2.scale.set(1,0.8,1);
+
+    var nube3 = new THREE.Mesh(sphere6,color13);
+   // scene.add(nube3);
+    nube3.position.set(-200,-100,0);
+    nube3.scale.set(1,0.8,1);
+
+    var nube4 = new THREE.Mesh(sphere6,color13);
+   // scene.add(nube4);
+    nube4.position.set(-500,-150,0);
+    nube4.scale.set(0.8,0.5,0.8);
+
+    var nube5 = new THREE.Mesh(sphere6,color13);
+   // scene.add(nube5);
+    nube5.position.set(500,-150,0);
+    nube5.scale.set(0.8,0.5,0.8);
+
+    var nube6 = new THREE.Mesh(sphere6,color13);
+    scene.add(nube6);
+    nube6.position.set(-2500,100,-1800);
+
+    var nube7 = new THREE.Mesh(sphere6,color13);
+    scene.add(nube7);
+    nube7.position.set(-2600,200,2200);
+
+        //AGRUPAR NUBE
+        var nubeFinal1 = new THREE.Group();
+        nubeFinal1.add(nube1,nube2,nube3,nube4,nube5);
+        scene.add(nubeFinal1);
+        nubeFinal1.position.set(0,2500,2700);
+
+        var nubeFinal2 = nubeFinal1.clone();
+        nubeFinal2.position.set(-2200,200,1600);
+        scene.add(nubeFinal2);
+        nubeFinal2.rotation.set(0,-0.5,0);
+        nubeFinal2.scale.set(1.2,1.5,1.5);
+
+        var nubeFinal3 = nubeFinal1.clone();
+        nubeFinal3.position.set(-1800,200,2600);
+        scene.add(nubeFinal3);
+        nubeFinal3.rotation.set(0,-0.6,0);
+        nubeFinal3.scale.set(1.2,1.5,1.5);
+
+        var nubeFinal4 = nubeFinal1.clone();
+        nubeFinal4.position.set(0,200,2800);
+        scene.add(nubeFinal4);
+        nubeFinal4.scale.set(1.2,1.5,1.5);
+
+        var nubeFinal5 = nubeFinal1.clone();
+        nubeFinal5.position.set(1750,200,2600);
+        scene.add(nubeFinal5);
+        nubeFinal5.rotation.set(0,0.6,0);
+        nubeFinal5.scale.set(1.2,1.5,1.5);
+
+        var nubeFinal6 = nubeFinal1.clone();
+        nubeFinal6.position.set(1800,200,-2000);
+        scene.add(nubeFinal6);
+        nubeFinal6.rotation.set(0,-0.5,0);
+        nubeFinal6.scale.set(1.2,1.5,1.5);
+
+        var nubeFinal7 = nubeFinal1.clone();
+        nubeFinal7.position.set(2500,200,-800);
+        scene.add(nubeFinal7);
+        nubeFinal7.rotation.set(0,-1.6,0);
+        nubeFinal7.scale.set(0.8,1,1.5);
+
+        var nubeFinal8 = nubeFinal1.clone();
+        nubeFinal8.position.set(2700,200,100);
+        scene.add(nubeFinal8);
+        nubeFinal8.rotation.set(0,-1.6,0);
+        nubeFinal8.scale.set(0.8,1,1.5);
+
+        var nubeFinal9 = nubeFinal1.clone();
+        nubeFinal9.position.set(-1800,200,-2500);
+        scene.add(nubeFinal9);
+        nubeFinal9.rotation.set(0,0.5,0);
+        nubeFinal9.scale.set(1.2,1.5,1.5);
+
+        var nubeFinal10 = nubeFinal1.clone();
+        nubeFinal10.position.set(2800,2500,0);
+        scene.add(nubeFinal10);
+        nubeFinal10.rotation.set(0,-1.6,0);
+
+        var nubeFinal11 = nubeFinal1.clone();
+        nubeFinal11.position.set(-2800,2500,0);
+        scene.add(nubeFinal11);
+        nubeFinal11.rotation.set(0,-1.6,0);
+
+        var nubeFinal12 = nubeFinal1.clone();
+        nubeFinal12.position.set(0,2500,-3800);
+        scene.add(nubeFinal12);
+
+        var nubeFinal13 = nubeFinal1.clone();
+        nubeFinal13.position.set(3000,2500,-3500);
+        scene.add(nubeFinal13);
+        nubeFinal13.rotation.set(0,-1.4,0);
+        nubeFinal13.scale.set(0.8,1,1.5);
+
+        var nubeFinal14 = nubeFinal1.clone();
+        nubeFinal14.position.set(3000,2500,3000);
+        scene.add(nubeFinal14);
+        nubeFinal14.rotation.set(0,1.4,0);
+        nubeFinal14.scale.set(0.8,1,1.5);
+
+        var nubeFinal15 = nubeFinal1.clone();
+        nubeFinal15.position.set(-3000,2500,-3500);
+        scene.add(nubeFinal15);
+        nubeFinal15.rotation.set(0,1.4,0);
+        nubeFinal15.scale.set(0.8,1,1.5);
+
+        var nubeFinal16 = nubeFinal1.clone();
+        nubeFinal16.position.set(-3000,2500,3000);
+        scene.add(nubeFinal16);
+        nubeFinal16.rotation.set(0,-1.4,0);
+        nubeFinal16.scale.set(0.8,1,1.5);
+        
+       
+        
+    //OBJETOS DE AERYTH
+
+    //ALAS
+    var esfera21 = new THREE.SphereGeometry(7,40,40);
+    var AlasColor1 = new THREE.MeshLambertMaterial({color: 0xBFE3DF});
+    var alad1 = new THREE.Mesh(esfera21,AlasColor1);
+    //scene.add(alad1);
+    alad1.position.set(-9,1,0);
+    alad1.scale.set(1.2,0.5,0.15);
+    alad1.rotation.set(0,0,-0.25);
+
+    var AlasColor2 = new THREE.MeshLambertMaterial({color: 0xE3BFDC});
+    var alad2 = new THREE.Mesh(esfera21,AlasColor2);
+    //scene.add(alad2);
+    alad2.position.set(-6.5,-5,0);
+    alad2.scale.set(0.85,0.5,0.15);
+    alad2.rotation.set(0,0,0.5);
+
+    var AlasColor3 = new THREE.MeshLambertMaterial({color: 0xBFC0E3});
+    var alad3 = new THREE.Mesh(esfera21,AlasColor3);
+    //scene.add(alad3);
+    alad3.position.set(-8,-1,0);
+    alad3.scale.set(1,0.4,0.2);
+
+    var alai1 = new THREE.Mesh(esfera21,AlasColor1);
+    //scene.add(alai1);
+    alai1.position.set(9,1,0);
+    alai1.scale.set(1.2,0.5,0.15);
+    alai1.rotation.set(0,0,0.25);
+
+    var alai2 = new THREE.Mesh(esfera21,AlasColor2);
+    //scene.add(alai2);
+    alai2.position.set(6.5,-5,0);
+    alai2.scale.set(0.85,0.5,0.15);
+    alai2.rotation.set(0,0,-0.5);
+
+    var alai3 = new THREE.Mesh(esfera21,AlasColor3);
+   // scene.add(alai3);
+    alai3.position.set(8,-1,0);
+    alai3.scale.set(1,0.4,0.2);
+
+    var dodecahedron02 = new THREE.OctahedronGeometry(4,0);
+    var AlasColor4 = new THREE.MeshLambertMaterial({color: 0xBD8417});
+    var ala = new THREE.Mesh(dodecahedron02,AlasColor4);
+    //scene.add(ala);
+    ala.position.set(0,-2,0);
+    ala.scale.set(1,0.6,0.2);
+
+    var AlasColor5 = new THREE.MeshLambertMaterial({color: 0xA31F69});
+    var ala1 = new THREE.Mesh(dodecahedron02,AlasColor5);
+    //scene.add(ala1);
+    ala1.position.set(0,-2,0);
+    ala1.scale.set(0.6,0.5,0.25);
+
+        //AGRUPAR PIES
+        var alasF = new THREE.Group();
+        alasF.add(alad1,alad2,alad3,alai1,alai2,alai3,ala,ala1);
+        scene.add(alasF);
+        alasF.position.set(-1000,500,-250);
+        alasF.scale.set(8,10,15);
+        alasF.rotation.set(0,1.8,0);
+
+    //ESTRELLAS 
+    var cono3 = new THREE.ConeGeometry(4.5,10,10);
+    var EstrellaColor1 = new THREE.MeshLambertMaterial({color:0xFFC014});
+    // punta arriba
+    var estrella1 = new THREE.Mesh(cono3,EstrellaColor1);
+    scene.add(estrella1);
+    estrella1.position.set(0,4,0);
+
+    // punta abajo izquierda
+    var estrella2 = new THREE.Mesh(cono3,EstrellaColor1);
+    //scene.add(estrella2);
+    estrella2.position.set(-3,-8,0);
+    estrella2.rotation.set(0,0,2.5);
+
+    // punta abajo derecha
+    var estrella3 = new THREE.Mesh(cono3,EstrellaColor1);
+    //scene.add(estrella3);
+    estrella3.position.set(3,-8,0);
+    estrella3.rotation.set(0,0,-2.5);
+
+    // punta arriba izquierda
+    var estrella4 = new THREE.Mesh(cono3,EstrellaColor1);
+    //scene.add(estrella4);
+    estrella4.position.set(-5,0,0);
+    estrella4.rotation.set(0,0,1);
+
+    // punta arriba derecha
+    var estrella5 = new THREE.Mesh(cono3,EstrellaColor1);
+    //scene.add(estrella5);
+    estrella5.position.set(5,0,0);
+    estrella5.rotation.set(0,0,-1);
+
+        //AGRUPAR ESTRELLA 
+        var estrellaF = new THREE.Group();
+        estrellaF.add(estrella1,estrella2,estrella3,estrella4,estrella5);
+        scene.add(estrellaF);
+        estrellaF.position.set(500,500,1500);
+        estrellaF.scale.set(8,10,10);
+
+    // CORONA
+    var torus4 = new THREE.TorusGeometry(6.5, 1, 10, 20);
+    var CoronaColor1 = new THREE.MeshLambertMaterial({color: 0xE3B002});
+    var corona1 = new THREE.Mesh(torus4, CoronaColor1);
+    //scene.add(corona1);
+    corona1.position.set(0, 0, 0);
+    corona1.rotation.set(1.6,0,0);
+
+    // Punta central
+    var CoronaColor2 = new THREE.MeshLambertMaterial({color: 0xE5B82E});
+    var cono = new THREE.ConeGeometry(1.5, 6, 10);
+    var corona2 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona2);
+    corona2.position.set(0, 3, 6.5);
+    corona2.scale.set(2,0.9,0.5);
+
+    var corona3 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona3);
+    corona3.position.set(3.5, 3, 5.5);
+    corona3.scale.set(2,0.9,0.5);
+    corona3.rotation.set(0,0.6,0);
+
+    var corona4 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona4);
+    corona4.position.set(-3.5, 3, 5.5);
+    corona4.scale.set(2,0.9,0.5);
+    corona4.rotation.set(0,-0.6,0);
+    
+    var corona5 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona5);
+    corona5.position.set(-6, 3, 2);
+    corona5.scale.set(2,0.9,0.5);
+    corona5.rotation.set(0,-1.3,0);
+
+    var corona6 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona6);
+    corona6.position.set(6, 3, 2);
+    corona6.scale.set(2,0.9,0.5);
+    corona6.rotation.set(0,1.3,0);
+
+    var corona7 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona7);
+    corona7.position.set(-6, 3, -2);
+    corona7.scale.set(2,0.9,0.5);
+    corona7.rotation.set(0,-1.8,0);
+
+    var corona8 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona8);
+    corona8.position.set(6, 3, -2);
+    corona8.scale.set(2,0.9,0.5);
+    corona8.rotation.set(0,1.8,0);
+
+    var corona9 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona9);
+    corona9.position.set(0, 3, -6.5);
+    corona9.scale.set(2,0.9,0.5);
+
+    var corona10 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona10);
+    corona10.position.set(3.5, 3, -5.5);
+    corona10.scale.set(2,0.9,0.5);
+    corona10.rotation.set(0,-0.6,0);
+
+    var corona11 = new THREE.Mesh(cono, CoronaColor2);
+    //scene.add(corona11);
+    corona11.position.set(-3.5, 3, -5.5);
+    corona11.scale.set(2,0.9,0.5);
+    corona11.rotation.set(0,0.6,0);
+
+    var dodecahedron03 = new THREE.OctahedronGeometry(4,0);
+    var CoronaColor3 = new THREE.MeshLambertMaterial({color: 0xA31F69});
+    var dia1 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+   // scene.add(dia1);
+    dia1.position.set(0, 2, 6.5);
+    dia1.scale.set(0.3,0.7,0.2);
+
+    var dia2 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+   // scene.add(dia2);
+    dia2.position.set(3.5, 2, 5.5);
+    dia2.scale.set(0.3,0.7,0.2);
+    dia2.rotation.set(0,0.6,0);
+
+    var dia3 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+   // scene.add(dia3);
+    dia3.position.set(-3.5, 2, 5.5);
+    dia3.scale.set(0.3,0.7,0.2);
+    dia3.rotation.set(0,-0.6,0);
+
+    var dia4 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+    //scene.add(dia4);
+    dia4.position.set(-6, 2, 2);
+    dia4.scale.set(0.3,0.7,0.2);
+    dia4.rotation.set(0,-1.3,0);
+
+    var dia5 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+    //scene.add(dia5);
+    dia5.position.set(-6, 2, 2);
+    dia5.scale.set(0.3,0.7,0.2);
+    dia5.rotation.set(0,-1.3,0);
+
+    var dia6 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+   // scene.add(dia6);
+    dia6.position.set(6, 2, 2);
+    dia6.scale.set(0.3,0.7,0.2);
+    dia6.rotation.set(0,1.3,0);
+
+    var dia7 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+   // scene.add(dia7);
+    dia7.position.set(-6, 2, -2);
+    dia7.scale.set(0.3,0.7,0.2);
+    dia7.rotation.set(0,-1.8,0);
+
+    var dia8 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+    //scene.add(dia8);
+    dia8.position.set(6, 2, -2);
+    dia8.scale.set(0.3,0.7,0.2);
+    dia8.rotation.set(0,1.8,0);
+
+    var dia9 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+    //scene.add(dia9);
+    dia9.position.set(6, 2, -2);
+    dia9.scale.set(0.3,0.7,0.2);
+    dia9.rotation.set(0,1.8,0);
+
+    var dia10 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+    //scene.add(dia10);
+    dia10.position.set(0, 2, -6.5);
+    dia10.scale.set(0.3,0.7,0.2);
+
+    var dia11 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+    //scene.add(dia11);
+    dia11.position.set(3.5, 2, -5.5);
+    dia11.scale.set(0.3,0.7,0.2);
+    dia11.rotation.set(0,-0.6,0);
+    
+    var dia12 = new THREE.Mesh(dodecahedron03,CoronaColor3);
+    //scene.add(dia12);
+    dia12.position.set(-3.5, 2, -5.5);
+    dia12.scale.set(0.3,0.7,0.2);
+    dia12.rotation.set(0,0.6,0);
+
+        //AGRUPAR CORONA
+        var coronaF = new THREE.Group();
+        coronaF.add(corona1,corona2,corona3,corona4,corona5,corona6,corona7,corona8,corona9,corona10,corona11,dia1,dia2,dia3,dia4,dia5,dia6,dia7,dia8,dia9,dia10,dia11,dia12);
+        scene.add(coronaF);
+        coronaF.position.set(0,700,-2000);
+        coronaF.scale.set(15,15,15);
+
+  //TARJETAS
+    // Tarjeta 1
+    var caja9 = new THREE.BoxGeometry(8, 12, 0.6);
+    var texturaTarjetas1 = new THREE.TextureLoader().load("./assets/tarjetas.png");
+    var materialTarjetas1 = new THREE.MeshLambertMaterial({map:texturaTarjetas1});
+    var tarjeta1 = new THREE.Mesh(caja9, materialTarjetas1);
+    scene.add(tarjeta1);
+    tarjeta1.position.set(0, 2, 0);
+
+    // Tarjeta 2
+    var caja10 = new THREE.BoxGeometry(8, 12, 0.6);
+    var tarjeta2 = new THREE.Mesh(caja10, materialTarjetas1);
+    scene.add(tarjeta2);
+    tarjeta2.position.set(-3, 0, -0.6);
+    tarjeta2.rotation.z = 0.58;
+
+    // Tarjeta 3
+    var caja11 = new THREE.BoxGeometry(8, 12, 0.6);
+    var tarjeta3 = new THREE.Mesh(caja11, materialTarjetas1);
+    scene.add(tarjeta3);
+    tarjeta3.position.set(3, 0, -0.6);
+    tarjeta3.rotation.z = -0.58;
+
+        //AGRUPAR TARJETAS
+        var tarjetasF = new THREE.Group();
+        tarjetasF.add(tarjeta1,tarjeta2,tarjeta3);
+        scene.add(tarjetasF);
+        tarjetasF.position.set(0,400,-800);
+        tarjetasF.scale.set(8,10,10);
+
+    //ATRAPASUEÑOS
+    var torus5 = new THREE.TorusGeometry(5, 0.5, 10, 20);
+    var AtrasueñosColor1 = new THREE.MeshLambertMaterial({color: 0xC79B06});
+    var atrapasuenos1 = new THREE.Mesh(torus5, AtrasueñosColor1);
+    //scene.add(atrapasuenos1);
+    atrapasuenos1.position.set(0, 1, 0);
+
+    var AtrasueñosColor2 = new THREE.MeshLambertMaterial({color: 0x4A3B13});
+    var atrapasuenos2 = new THREE.Mesh(torus5, AtrasueñosColor2);
+   // scene.add(atrapasuenos2);
+    atrapasuenos2.position.set(0, 1, 0);
+    atrapasuenos2.scale.set(0.25,0.25,0.25);
+
+    // Hilo central
+    var cilindro10 = new THREE.CylinderGeometry(0.5,0.5, 2, 10);
+    var atrapasuenos3 = new THREE.Mesh(cilindro10, AtrasueñosColor2);
+    //scene.add(atrapasuenos3);
+    atrapasuenos3.position.set(0, 7, 0);
+
+    var esfera22 = new THREE.SphereGeometry(2, 15, 15);
+    var AtrasueñosColor3 = new THREE.MeshLambertMaterial({color: 0xCC99DD});
+    var pluma1 = new THREE.Mesh(esfera22, AtrasueñosColor3);
+    //scene.add(pluma1);
+    pluma1.position.set(-4, -8, 0);
+    pluma1.scale.set(0.5, 1.5, 0.3);
+    pluma1.rotation.z = -0.4;
+
+    var AtrasueñosColor4 = new THREE.MeshLambertMaterial({color: 0x99B6DD});
+    var pluma2 = new THREE.Mesh(esfera22, AtrasueñosColor4);
+    //scene.add(pluma2);
+    pluma2.position.set(4, -9, 0);
+    pluma2.scale.set(0.5, 1.5, 0.3);
+    pluma2.rotation.z = 0.4;
+
+    var pluma3 = new THREE.Mesh(esfera22, AtrasueñosColor3);
+    //scene.add(pluma3);
+    pluma3.position.set(2, -13, 0);
+    pluma3.scale.set(0.5, 1.5, 0.3);
+    pluma3.rotation.z = 0.2;
+
+    var pluma4 = new THREE.Mesh(esfera22, AtrasueñosColor4);
+    //scene.add(pluma4);
+    pluma4.position.set(-2, -12, 0);
+    pluma4.scale.set(0.5, 1.5, 0.3);
+    pluma4.rotation.z = -0.2;
+
+    var hilo1 = new THREE.Mesh(cilindro10, AtrasueñosColor2);
+    //scene.add(hilo1);
+    hilo1.position.set(2.4, -5, 0);
+    hilo1.scale.set(0.2,1.7,0.1);
+    hilo1.rotation.z = 0.4;
+
+    var hilo2 = new THREE.Mesh(cilindro10, AtrasueñosColor2);
+    //scene.add(hilo2);
+    hilo2.position.set(1, -8, 0);
+    hilo2.scale.set(0.2,4,0.1);
+    hilo2.rotation.z = 0.2;
+
+    var hilo3 = new THREE.Mesh(cilindro10, AtrasueñosColor2);
+    //scene.add(hilo3);
+    hilo3.position.set(-1, -7, 0);
+    hilo3.scale.set(0.2,2.8,0.1);
+    hilo3.rotation.z = -0.2;
+
+    var hilo4 = new THREE.Mesh(cilindro10, AtrasueñosColor2);
+    //scene.add(hilo4);
+    hilo4.position.set(-2.5, -5, 0);
+    hilo4.scale.set(0.2,1.5,0.1);
+    hilo4.rotation.z = -0.3;
+        
+        //AGRUPAR ATRAPASUEÑOS
+        var atrapasuenosF = new THREE.Group();
+        atrapasuenosF.add(atrapasuenos1,atrapasuenos2,atrapasuenos3,pluma1,pluma2,pluma3,pluma4,hilo1,hilo2,hilo3,hilo4);
+        scene.add(atrapasuenosF);
+        atrapasuenosF.position.set(1600,500,1000);
+        atrapasuenosF.scale.set(12,12,12);
+        atrapasuenosF.rotation.set(0,1.8,0);
+
+
+     // RECOLECCIÓN DE OBJETOS
+    
+    // RECOLECCIÓN DE OBJETOS
+    var objetosRecolectados = 0;
+    var cambioDeMundo = false;
+
+    var alasEncontrada = false;
+    var estrellaEncontrada = false;
+    var coronaEncontrada = false;
+    var tarjetaEncontrada = false;
+    var atrapasueñosEncontrado = false;
+
+    var objetoCercano = null;
+
+    var contadorHTML = document.getElementById("contadorObjetos");
+    var mensajeHTML = document.getElementById("mensajeObjeto");
+
+    // Detectar la distancia entre el personaje y un objeto
+    function distanciaObjeto(objeto) {
+        var diferenciaX = personajeJugador.position.x - objeto.position.x;
+        var diferenciaZ = personajeJugador.position.z - objeto.position.z;
+
+        return Math.sqrt(
+            diferenciaX * diferenciaX +
+            diferenciaZ * diferenciaZ
+        );
+    }
+
+    // Buscar un objeto cercano
+    function detectarObjetoCercano() {
+        objetoCercano = null;
+        var distanciaMenor = 250;
+
+        if (!alasEncontrada && distanciaObjeto(alasF) < distanciaMenor) {
+            objetoCercano = alasF;
+            distanciaMenor = distanciaObjeto(alasF);
+        }
+
+        if (!estrellaEncontrada && distanciaObjeto(estrellaF) < distanciaMenor) {
+            objetoCercano = estrellaF;
+            distanciaMenor = distanciaObjeto(estrellaF);
+        }
+
+        if (!coronaEncontrada && distanciaObjeto(coronaF) < distanciaMenor) {
+            objetoCercano = coronaF;
+            distanciaMenor = distanciaObjeto(coronaF);
+        }
+
+        if (!tarjetaEncontrada && distanciaObjeto(tarjetasF) < distanciaMenor) {
+            objetoCercano = tarjetasF;
+            distanciaMenor = distanciaObjeto(tarjetasF);
+        }
+
+        if (!atrapasueñosEncontrado && distanciaObjeto(atrapasuenosF) < distanciaMenor) {
+            objetoCercano = atrapasuenosF;
+            distanciaMenor = distanciaObjeto(atrapasuenosF);
+        }
+
+        if (objetoCercano !== null) {
+            mensajeHTML.textContent = "Presiona E para recoger el objeto";
+        } else if (objetosRecolectados < 5) {
+            mensajeHTML.textContent = "Busca los objetos de AERYTH";
+        }
+    }
+
+    // Recoger el objeto más cercano
+    function recogerObjeto() {
+        if (objetoCercano === null) {
+            return;
+        }
+
+        if (objetoCercano === alasF) {
+            alasEncontrada = true;
+           // world.removeBody(colisionAlas);
+        }
+
+        if (objetoCercano === estrellaF) {
+            estrellaEncontrada = true;
+           // world.removeBody(colisionEstrella);
+        }
+
+        if (objetoCercano === coronaF) {
+            coronaEncontrada = true;
+           // world.removeBody(colisionCorona);
+        }
+
+        if (objetoCercano === tarjetasF) {
+            tarjetaEncontrada = true;
+           // world.removeBody(colisionTarjetas);
+        }
+
+        if (objetoCercano === atrapasuenosF) {
+            atrapasueñosEncontrado = true;
+           // world.removeBody(colisionAtrapasuenos);
+        }
+
+        objetoCercano.visible = false;
+        objetosRecolectados++;
+
+        contadorHTML.innerHTML =
+            "Objetos encontrados: " + objetosRecolectados + " / 5" +
+            "<br><span id='mensajeObjeto'></span>";
+
+        mensajeHTML = document.getElementById("mensajeObjeto");
+
+        if (objetosRecolectados === 5) {
+            mensajeHTML.textContent =
+                "¡Encontraste todos los objetos de AERYTH! Ve al portal.";
+        } else {
+            mensajeHTML.textContent = "¡Objeto encontrado!";
+        }
+
+        objetoCercano = null;
+    }
+
+    // Recoger al presionar E
+    document.addEventListener("keydown", function(event) {
+        if (event.key.toLowerCase() === "e" && !event.repeat) {
+            recogerObjeto();
+        }
+    });
+
+    // Comprobar si el personaje llegó al portal
+    function comprobarPortal() {
+        if (
+            Math.abs(personajeJugador.position.x - 2600) < 120 &&
+            personajeJugador.position.z >= -500 &&
+            personajeJugador.position.z <= 420
+        ) {
+            if (objetosRecolectados === 5 && cambioDeMundo === false) {
+                cambioDeMundo = true;
+
+                mensajeHTML.textContent =
+                    "¡Portal activado! RECUPERASTE TODOS LOS OBJETOS DE LOS 3 MUNDOS...";
+
+                window.location.href = "AERYTH.html";
+
+            } else if (
+                objetosRecolectados < 5 &&
+                objetoCercano === null
+            ) {
+                mensajeHTML.textContent =
+                    "Encuentra los 5 objetos para activar el portal.";
+            }
+        }
+    }
+
+
+    function seguirPersonaje() {
+        var posicionCamara = new THREE.Vector3(0,450,-400);
+
+        posicionCamara.applyQuaternion(personajeJugador.quaternion);
+        posicionCamara.add(personajeJugador.position);
+
+        camera.position.lerp(posicionCamara, 0.12);
+
+        camera.lookAt(
+            personajeJugador.position.x,
+            personajeJugador.position.y + 150,
+            personajeJugador.position.z
+        );
+    }
+
+  
+    
+
+
+
+//🎰🎰Rendering y animación
+    requestAnimationFrame(render);
+    function render() {
+        animate();
+        world.step(1 / 60);// Actualizar el mundo fisico
+        FisicasAlGrafico();// Sincronizar el personaje
+        seguirPersonaje();
+        detectarObjetoCercano();// Detectar objetos cercanos
+
+        comprobarPortal(); //Comprueba si llego al portal
+
+        //ROTACIÓN DE LOS OBJETOS
+        alasF.rotation.y += 0.05
+        estrellaF.rotation.y += 0.05
+        coronaF.rotation.y += 0.05
+        tarjetasF.rotation.y += 0.05
+        atrapasuenosF.rotation.y += 0.05
+
+        //cannonDebug.update(); 
+        //controls.update();
+
+        //Llamado para renderizar y volver a llamar a la misma función (render)
+        renderer.render(scene, camera);
+        requestAnimationFrame(render);
+    }
+</script>
+
+
+    <audio id="musicaFondo" autoplay loop preload="auto">
+        <source src="./audios/mundos.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        var musica = document.getElementById("musicaFondo");
+        musica.volume = 0.25;
+
+        // Intentar reproducir automáticamente
+        musica.play().catch(function() {
+            // Si el navegador lo bloquea, iniciar con el primer clic
+            document.addEventListener("click", function() {
+                musica.play();
+            }, { once: true });
+        });
+    </script>
+
+</body>
+</html>

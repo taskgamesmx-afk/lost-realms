@@ -1,0 +1,595 @@
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+    <title>INSTRUCCIONES | Lost Realms</title>
+    <link rel="icon" href="./assets/logo.png">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #08051e;
+            margin: 0;
+            overflow-x: hidden;
+            color: white;
+            font-family: Georgia, serif;
+        }
+
+        /* CANVAS PARA THREE.JS */
+        #myCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        /* INTERFAZ PRINCIPAL */
+        #interfaz {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            min-height: 100vh;
+            padding: 20px 35px 90px;
+            background: radial-gradient(ellipse at center, #21104c 0%, #0c062b 65%, #08051e 100%);
+        }
+
+        /* TITULO */
+        .titulo-instrucciones {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .titulo-instrucciones h1 {
+            margin: 0;
+            margin-top: 20px;
+            font-size: clamp(35px, 4vw, 65px);
+            color: #e2a2ff;
+            text-shadow: 0 0 15px #a43cff;
+            letter-spacing: 3px;
+        }
+
+        .titulo-instrucciones p {
+            color: #d99aff;
+            font-size: clamp(14px, 1.5vw, 21px);
+            margin: 8px 0;
+        }
+
+        /* DISTRIBUCION PRINCIPAL */
+        .contenido-instrucciones {
+            display: grid;
+            grid-template-columns: 34% 66%;
+            gap: 18px;
+            max-width: 1500px;
+            margin: auto;
+            margin-top: 40px;
+        }
+
+        /* PANELES */
+        .panel {
+            background: rgba(10, 7, 40, 0.92);
+            border: 2px solid #984cff;
+            border-radius: 23px;
+            padding: 15px;
+            box-shadow:
+                0 0 12px #7d32d9,
+                inset 0 0 15px rgba(112, 42, 200, 0.15);
+        }
+
+        .panel h2 {
+            text-align: center;
+            color: #d5a5ff;
+            font-size: clamp(18px, 2vw, 29px);
+            letter-spacing: 2px;
+            margin: 0 0 15px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #6632a5;
+        }
+
+        /* CONTROLES */
+        .control {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px 5px;
+            margin-top: 22px;
+            border-bottom: 1px solid rgba(145, 76, 255, 0.3);
+        }
+
+        .teclas {
+            min-width: 110px;
+            text-align: center;
+            background: linear-gradient(145deg, #a45aff, #5620b5);
+            border: 2px solid #d29aff;
+            border-radius: 10px;
+            padding: 12px 8px;
+            color: white;
+            font-size: 19px;
+            font-weight: bold;
+            box-shadow: 0 0 10px #8b42e7;
+        }
+
+        .descripcion-control {
+            font-size: 16px;
+            line-height: 1.5;
+            color: #f0dfff;
+        }
+
+        .descripcion-control strong {
+            display: block;
+            color: #e0baff;
+            font-size: 17px;
+        }
+
+        /* MENSAJE DE OBJETIVO */
+        .objetivo {
+            margin-top: 18px;
+            padding: 15px;
+            border: 1px solid #bd65ff;
+            border-radius: 15px;
+            background: rgba(91, 30, 160, 0.18);
+            text-align: center;
+            color: #e4c9ff;
+            line-height: 1.5;
+        }
+
+        /* PANEL DE LOS MUNDOS */
+        .panel-mundos {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .mundo {
+            display: grid;
+            grid-template-columns: 25% 75%;
+            align-items: center;
+            border-radius: 16px;
+            padding: 12px;
+            min-height: 160px;
+            border: 2px solid;
+        }
+
+        .mundo-info {
+            text-align: center;
+            padding: 5px;
+        }
+
+        .mundo-info h3 {
+            font-size: clamp(20px, 2.5vw, 32px);
+            margin: 5px 0;
+        }
+
+        .mundo-info p {
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .umbra {
+            background: linear-gradient(100deg, #48101e, #19091d);
+            border-color: #ff4567;
+        }
+
+        .umbra h3 {
+            color: #ff777f;
+        }
+
+        .ignis {
+            background: linear-gradient(100deg, #102d50, #102d35);
+            border-color: #49cfff;
+        }
+
+        .ignis h3 {
+            color: #73dcff;
+        }
+
+        .aeryth {
+            background: linear-gradient(100deg, #26377d, #35245e);
+            border-color: #8c9dff;
+        }
+
+        .aeryth h3 {
+            color: #a9c8ff;
+        }
+
+        /* OBJETOS DE CADA MUNDO */
+        .objetos {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            text-align: center;
+        }
+
+        .objeto {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+            color: #fff;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .icono-mision {
+            font-size: 65px;
+            margin-bottom: 7px;
+            filter: drop-shadow(0 0 10px #a344ff);
+        }
+
+        .icono-objeto {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+            margin-bottom: 7px;
+            display: block;
+        }
+
+        .umbra .icono-objeto {
+            filter: drop-shadow(0 0 8px #ff5368);
+        }
+
+        .ignis .icono-objeto {
+            filter: drop-shadow(0 0 8px #56ff9c);
+        }
+
+        .aeryth .icono-objeto {
+            filter: drop-shadow(0 0 8px #a9c8ff);
+        }
+
+        /* FRASE INFERIOR */
+        .frase-final {
+            text-align: center;
+            color: #d38aff;
+            letter-spacing: 5px;
+            margin-top: 25px;
+            font-size: 15px;
+        }
+
+        /* BOTON REGRESAR */
+        #botonVolver {
+            position: absolute;
+            bottom: 15px;
+            right: 30px;
+        }
+
+        #botonVolver img {
+            width: 200px;
+            height: 90px;
+            object-fit: contain;
+            cursor: pointer;
+            transition: transform 0.3s, filter 0.3s;
+        }
+
+        #botonVolver img:hover {
+            transform: scale(1.08);
+            filter: drop-shadow(0 0 7px #bd75ff);
+        }
+
+        /* ADAPTACION A PANTALLAS PEQUEÑAS */
+        @media (max-width: 850px) {
+
+            #interfaz {
+                padding: 20px 15px 100px;
+            }
+
+            .contenido-instrucciones {
+                grid-template-columns: 1fr;
+            }
+
+            .mundo {
+                grid-template-columns: 1fr;
+            }
+
+            .mundo-info {
+                margin-bottom: 10px;
+            }
+
+            .objetos {
+                grid-template-columns: repeat(3, 1fr);
+                row-gap: 15px;
+            }
+
+            .frase-final {
+                letter-spacing: 2px;
+            }
+        }
+
+        @media (max-width: 450px) {
+            .objetos {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .control {
+                gap: 8px;
+            }
+
+            .teclas {
+                min-width: 85px;
+                font-size: 15px;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    
+<canvas id="myCanvas">
+    <!--El elemento HTML canvas se puede utilizar para dibujar gráficos a través de 
+        secuencias de comandos (por lo general JavaScript ).-->
+</canvas>
+
+    <div id="interfaz">
+
+        <!-- TITULO -->
+        <header class="titulo-instrucciones">
+            <h1>¿CÓMO JUGAR?</h1>
+            <p>
+                Explora cada reino, encuentra las 5 reliquias
+                y activa el portal para continuar tu aventura.
+            </p>
+        </header>
+
+        <main class="contenido-instrucciones">
+
+            <!-- PANEL DE CONTROLES -->
+            <section class="panel">
+
+                <h2>✦ CONTROLES ✦</h2>
+
+                <div class="control">
+                    <div class="teclas">W A S D</div>
+                    <div class="descripcion-control">
+                        <strong>Mover al personaje</strong>
+                        Adelante, atrás, izquierda y derecha.
+                    </div>
+                </div>
+
+                <div class="control">
+                    <div class="teclas">SPACE</div>
+                    <div class="descripcion-control">
+                        <strong>Saltar</strong>
+                        Supera obstáculos durante tu aventura.
+                    </div>
+                </div>
+
+                <div class="control">
+                    <div class="teclas">E</div>
+                    <div class="descripcion-control">
+                        <strong>Recoger objetos</strong>
+                        Acércate a las reliquias para recogerlas.
+                    </div>
+                </div>
+
+                <!-- OBJETIVO -->
+                <div class="objetivo">
+                    <div class="icono-mision">🌀</div>
+
+                    <strong>¡Tu misión!</strong>
+
+                    <p>
+                        Encuentra las 5 reliquias de cada mundo.
+                        Cuando las hayas reunido, el portal
+                        se activará para llevarte al siguiente reino.
+                    </p>
+                </div>
+
+            </section>
+
+
+            <!-- PANEL DE LOS TRES MUNDOS -->
+            <section class="panel">
+
+                <h2>✦ OBJETOS DE CADA MUNDO ✦</h2>
+
+                <div class="panel-mundos">
+
+                    <!-- UMBRA -->
+                    <div class="mundo umbra">
+
+                        <div class="mundo-info">
+                            <h3>☾ UMBRA</h3>
+                            <p>Las reliquias perdidas de las sombras.</p>
+                        </div>
+
+                        <div class="objetos">
+
+                            <div class="objeto">
+                                <img src="./assets/craneo.png" class="icono-objeto"> Cráneo<br> Ancestral
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/fuego.png" class="icono-objeto"> Chispa<br> de Fuego
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/espada.png" class="icono-objeto"> Espada<br> de los Caídos
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/escudo.png" class="icono-objeto"> Escudo de<br> la Fortaleza
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/cuerda.png" class="icono-objeto"> Cuerda de<br> los Lamentos
+                            </div>
+
+                        </div>
+                    </div>
+
+
+                    <!-- IGNIS -->
+                    <div class="mundo ignis">
+
+                        <div class="mundo-info">
+                            <h3>✺ IGNIS</h3>
+                            <p>Artefactos del bosque mágico.</p>
+                        </div>
+
+                        <div class="objetos">
+
+                            <div class="objeto">
+                                <img src="./assets/hongo.png" class="icono-objeto">  Hongo<br> Bioluminiscente
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/posion.png" class="icono-objeto"> Poción Mágica<br> Concentrada
+                            </div>
+
+                            <div class="objeto">
+                               <img src="./assets/moneda.png" class="icono-objeto"> Moneda<br> del Destino
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/libro.png" class="icono-objeto"> Libro de los<br> Hechizos Olvidados
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/caldero.png" class="icono-objeto"> Caldero<br> de Luz
+                            </div>
+
+                        </div>
+                    </div>
+
+
+                    <!-- AERYTH -->
+                    <div class="mundo aeryth">
+
+                        <div class="mundo-info">
+                            <h3>✧ AERYTH</h3>
+                            <p>Objetos bendecidos por el viento y las estrellas.</p>
+                        </div>
+
+                        <div class="objetos">
+
+                            <div class="objeto">
+                               <img src="./assets/alas.png" class="icono-objeto"> Alas<br> del Viento
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/estrella.png" class="icono-objeto"> Estrella<br> Guía
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/corona.png" class="icono-objeto"> Corona del<br> Firmamento
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/tarjeta.png" class="icono-objeto"> Tarjetas<br> del Destino
+                            </div>
+
+                            <div class="objeto">
+                                <img src="./assets/atrasueño.png" class="icono-objeto"> Atrapasueños<br> Supremo
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+        </main>
+
+
+        <!-- FRASE FINAL -->
+        <div class="frase-final"> ✧ TRES MUNDOS ✦ INFINITAS AVENTURAS ✧ </div>
+
+
+        <!-- BOTON REGRESAR -->
+        <a href="index.html" id="botonVolver"><img src="./assets/boton-volver.png" alt="Volver al menú principal"></a>
+
+    </div>
+
+
+
+<!-- Aquí va todo el código de three.js -->
+<!-- script type="importmap" importa las librerías necesarias para three.js-->
+<script type="importmap"> 
+    {
+        "imports":{
+            "three": "./js/three.module.js",
+            "three/OrbitControls": "./js/OrbitControls.js" 
+        }
+}
+</script>
+<script type="module"> 
+//🗃️🗃️ Mandar llamar a la librería
+    import * as THREE from 'three'; 
+    import {OrbitControls} from 'three/OrbitControls';
+    console.log(OrbitControls);
+    import {RoundedBoxGeometry} from "./js/RoundedBoxGeometry.js"
+
+//🕹️🕹️ Renderer - Realiza una conexión entre el código y el canvas
+    var renderer = new THREE.WebGLRenderer({
+    canvas: document.getElementById('myCanvas'), antialias: true,
+    });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x70707C);
+
+
+// 🎬 Creando nueva escena - Es el espacio donde se colocan los objetos
+    var scene = new THREE.Scene();
+
+//🎥🎥 Agregar una cámara de perspectiva
+    var camera = new THREE.PerspectiveCamera(70,window.innerWidth / window.innerHeight,0.1,2000
+      );
+    scene.add(camera);
+
+    //Settings de la cámara
+    camera.position.set(0, 4, 25);
+
+    // Añadiendo los OrbitControls
+    var controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+ 
+
+// Espacio para colocar los objetos
+
+
+
+
+
+
+
+//🎰🎰Rendering y animación
+    requestAnimationFrame(render);
+    function render() {
+    //🪄🪄 Animación - 
+
+
+
+
+
+    //🎮🎮Actualización del OrbitControls para generar la suavidad de movimiento
+    controls.update();
+    //Llamado para renderizar y volver a llamar a la misma función (render)
+    renderer.render(scene, camera);
+    requestAnimationFrame(render);
+    }
+</script>
+
+    <audio id="musicaFondo" autoplay loop preload="auto">
+        <source src="./audios/inicio_juego.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        var musica = document.getElementById("musicaFondo");
+        musica.volume = 0.25;
+
+        // Intentar reproducir automáticamente
+        musica.play().catch(function() {
+            // Si el navegador lo bloquea, iniciar con el primer clic
+            document.addEventListener("click", function() {
+                musica.play();
+            }, { once: true });
+        });
+    </script>
+    
+</body>
+</html>

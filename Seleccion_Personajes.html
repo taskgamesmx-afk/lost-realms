@@ -1,0 +1,510 @@
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+    <title>PERSONAJES | Lost Realms</title>
+    <link rel="icon" href="./assets/logo.png">
+
+    <style>
+        
+    /* CONFIGURACION GENERAL */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            overflow-x: hidden;
+            color: white;
+            font-family: Georgia, serif;
+            font-size: 18px;
+        }
+
+        /* CANVAS PARA THREE.JS */
+        #myCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        /* INTERFAZ PRINCIPAL */
+        #interfaz {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            min-height: 100vh;
+            padding: 20px 35px 90px;
+            text-align: center;
+
+            background: radial-gradient(
+                ellipse at center, #21104c 0%, #0c062b 65%, #08051e 100% );
+        }
+
+        /* TITULO DE SELECCIÓN */
+        .titulo-seleccion {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .titulo-seleccion h1 {
+            margin: 0;
+            margin-top: 20px;
+            font-size: clamp(35px, 4vw, 65px);
+            color: #e2a2ff;
+            text-shadow: 0 0 15px #a43cff;
+            letter-spacing: 3px;
+        }
+
+        .titulo-seleccion p {
+            color: #d99aff;
+            font-size: clamp(14px, 1.5vw, 21px);
+            margin: 8px 0;
+        }
+
+        /* CONTENEDOR DE LOS TRES PERSONAJES */
+        .contenedor-personajes {
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            gap: 25px;
+            width: 100%;
+            max-width: 1100px;
+            margin: clamp(40px, 8vh, 80px) auto 0;
+        }
+
+        /* TARJETAS DE PERSONAJES */
+        .personaje {
+            flex: 1;
+            min-width: 0;
+            padding: 18px;
+            border: 2px solid;
+            border-radius: 18px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        /* STELLA: AZUL */
+        .stella {
+            border-color: #76CFFF;
+            background: rgba(25, 65, 110, 0.65);
+            box-shadow: 0 0 18px rgba(75, 175, 255, 0.25);
+        }
+
+        /* VESPER: ROJO */
+        .vesper {
+            border-color: #FF5555;
+            background: rgba(100, 20, 30, 0.65);
+            box-shadow: 0 0 18px rgba(255, 60, 70, 0.25);
+        }
+
+        /* ELOWEN: VERDE */
+        .elowen {
+            border-color: #83E68B;
+            background: rgba(25, 85, 45, 0.65);
+            box-shadow: 0 0 18px rgba(90, 230, 110, 0.25);
+        }
+
+        /* EFECTO AL PASAR EL CURSOR */
+        .personaje:hover {
+            transform: translateY(-8px);
+        }
+
+        .stella:hover {
+            box-shadow: 0 0 28px rgba(75, 175, 255, 0.65);
+        }
+
+        .vesper:hover {
+            box-shadow: 0 0 28px rgba(255, 60, 70, 0.65);
+        }
+
+        .elowen:hover {
+            box-shadow: 0 0 28px rgba(90, 230, 110, 0.65);
+        }
+
+        /* EFECTO AL PASAR EL CURSOR */
+        .personaje:hover {
+            transform: translateY(-8px);
+        }
+
+        .stella:hover {
+            box-shadow: 0 0 25px rgba(75, 175, 255, 0.45);
+        }
+
+        .vesper:hover {
+            box-shadow: 0 0 25px rgba(255, 60, 70, 0.45);
+        }
+
+        .elowen:hover {
+            box-shadow: 0 0 25px rgba(90, 230, 110, 0.45);
+        }
+
+        /* ESPACIO PARA IMAGEN DEL PERSONAJE */
+        .espacio-modelo {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 280px;
+            overflow: hidden;
+            border-radius: 12px;
+
+            background: rgba(5, 5, 20, 0.30);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.25);
+        }
+
+        .espacio-modelo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center bottom;
+        }
+
+        /* TEXTO TEMPORAL DEL MODELO */
+        .espacio-modelo span {
+            font-size: 20px;
+            letter-spacing: 3px;
+            opacity: 0.7;
+        }
+
+        /* NOMBRE DEL PERSONAJE */
+        .personaje h3 {
+            margin: 15px 0 5px;
+            letter-spacing: 2px;
+            font-size: 25px;
+        }
+
+        /* COLOR DEL NOMBRE DE CADA PERSONAJE */
+        .stella h3 {
+            color: #BDEAFF;
+        }
+
+        .vesper h3 {
+            color: #FFB0A8;
+        }
+
+        .elowen h3 {
+            color: #C7F5B9;
+        }
+
+        /* DESCRIPCION */
+        .personaje p {
+            min-height: 35px;
+            font-size: 18px;
+            color: #E0DDED;
+        }
+
+        /* BOTON AZUL DE STELLA */
+        .stella a {
+            background: #287CC1;
+        }
+
+        .stella a:hover {
+            background: #49A7F0;
+        }
+
+        /* BOTON ROJO DE VESPER */
+        .vesper button {
+            background: #B52B3A;
+        }
+
+        .vesper button:hover {
+            background: #E34454;
+        }
+
+        /* BOTON VERDE DE ELOWEN */
+        .elowen button {
+            background: #39854B;
+        }
+
+        .elowen button:hover {
+            background: #58B96A;
+        }
+            
+        /* BOTONES DE SELECCION */
+        .boton-seleccionar {
+            display: block;
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 8px;
+            color: white;
+            text-decoration: none;
+            text-align: center;
+            font-size: 16px;
+            transition: background 0.3s;
+            font-family: Arial;
+        }
+
+        /* STELLA */
+        .stella .boton-seleccionar {
+            background: #287CC1;
+        }
+
+        .stella .boton-seleccionar:hover {
+            background: #49A7F0;
+        }
+
+        /* VESPER */
+        .vesper .boton-seleccionar {
+            background: #B52B3A;
+        }
+
+        .vesper .boton-seleccionar:hover {
+            background: #E34454;
+        }
+
+        /* ELOWEN */
+        .elowen .boton-seleccionar {
+            background: #39854B;
+        }
+
+        .elowen .boton-seleccionar:hover {
+            background: #58B96A;
+        }
+
+        /* ESPACIO DE LA IMAGEN DEL PERSONAJE */
+        .espacio-modelo {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 280px;
+            overflow: hidden;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.15);
+            border: 1px dashed rgba(255, 255, 255, 0.5);
+        }
+
+        /* IMAGEN DEL PERSONAJE */
+        .espacio-modelo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center bottom;
+        }
+
+        /* BOTON REGRESAR */
+        #botonVolver {
+            position: absolute;
+            bottom: 15px;
+            right: 30px;
+        }
+
+        #botonVolver img {
+            width: 200px;
+            height: 90px;
+            object-fit: contain;
+            cursor: pointer;
+            transition: transform 0.3s, filter 0.3s;
+        }
+
+        #botonVolver img:hover {
+            transform: scale(1.08);
+            filter: drop-shadow(0 0 7px #bd75ff);
+        }
+
+    </style>
+</head>
+
+<body>
+    
+<canvas id="myCanvas">
+    <!--El elemento HTML canvas se puede utilizar para dibujar gráficos a través de 
+        secuencias de comandos (por lo general JavaScript ).-->
+        
+</canvas>
+
+    <div id="interfaz">
+        <div class="titulo-seleccion">
+            <h1>SELECCIONA TU PERSONAJE</h1>
+            <p>Elige al guardián que te acompañará en esta aventura</p>
+        </div>
+
+        <div class="contenedor-personajes">
+            
+            <!-- STELLA -->
+            <div class="personaje stella">
+
+                <div class="espacio-modelo">
+                    <img src="./assets/Stella.png" alt="Stella, Guerrera de las Nubes">
+                </div>
+
+                <h3>STELLA</h3>
+                <p>Guerrera de las Nubes</p>
+
+                <a href="#" class="boton-seleccionar"  onclick="seleccionarPersonaje('Stella'); return false;">
+                    Seleccionar
+                </a>
+
+            </div>
+
+            <!-- VESPER -->
+            <div class="personaje vesper">
+
+                <div class="espacio-modelo">
+                    <img src="./assets/Vesper.png" alt="Vesper, Espíritu de las Sombras">
+                </div>
+
+                <h3>VESPER</h3>
+                <p>Espíritu de las Sombras</p>
+
+                <a href="#" class="boton-seleccionar" onclick="seleccionarPersonaje('Vesper'); return false;">
+                    Seleccionar
+                </a>
+
+            </div>
+
+            <!-- ELOWEN -->
+            <div class="personaje elowen">
+
+                <div class="espacio-modelo">
+                    <img src="./assets/Ellowen.png" alt="Elowen, Guardiana de la Esencia">
+                </div>
+
+                <h3>ELOWEN</h3>
+                <p>Guardiana de la Esencia</p>
+
+                <a href="#" class="boton-seleccionar" onclick="seleccionarPersonaje('Ellowen'); return false;">
+                    Seleccionar
+                </a>
+
+            </div>
+
+        </div><br>
+
+       <!--  <a href="UMBRA.html" class="boton-seleccionar" onclick="return comprobarSeleccion();">
+            <img src="./assets/boton-jugar.png" width="250px" height="100px" alt="Jugar">
+        </a>-->
+        
+        <!-- BOTON REGRESAR -->
+        <a href="index.html" id="botonVolver"><img src="./assets/boton-volver.png" alt="Volver al menú principal"></a> 
+
+        <p id="mensajeSeleccion" aria-live="polite"></p>
+
+        <script>
+            function comprobarSeleccion() {
+                var personaje = localStorage.getItem("personajeSeleccionado");
+
+                if (personaje === null) {
+                    document.getElementById("mensajeSeleccion").textContent =
+                        "Primero selecciona un personaje.";
+                    return false;
+                }
+
+                return true;
+            }
+        </script>
+
+    </div>
+
+
+    <script>
+        function seleccionarPersonaje(nombre) {
+            localStorage.setItem( "personajeSeleccionado", nombre.toLowerCase() );
+
+            document.getElementById("mensajeSeleccion").textContent =
+                "Has seleccionado a " + nombre + ". Tu elección se ha guardado.";
+        }
+    </script>
+
+    
+
+
+
+<!-- Aquí va todo el código de three.js -->
+<!-- script type="importmap" importa las librerías necesarias para three.js-->
+<script type="importmap"> 
+    {
+        "imports":{
+            "three": "./js/three.module.js",
+            "three/OrbitControls": "./js/OrbitControls.js" 
+        }
+}
+</script>
+<script type="module"> 
+//🗃️🗃️ Mandar llamar a la librería
+    import * as THREE from 'three'; 
+    import {OrbitControls} from 'three/OrbitControls';
+    console.log(OrbitControls);
+    import {RoundedBoxGeometry} from "./js/RoundedBoxGeometry.js"
+
+//🕹️🕹️ Renderer - Realiza una conexión entre el código y el canvas
+    var renderer = new THREE.WebGLRenderer({
+    canvas: document.getElementById('myCanvas'), antialias: true,
+    });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x70707C);
+
+
+// 🎬 Creando nueva escena - Es el espacio donde se colocan los objetos
+    var scene = new THREE.Scene();
+
+
+//🎥🎥 Agregar una cámara de perspectiva
+    var camera = new THREE.PerspectiveCamera(70,window.innerWidth / window.innerHeight,0.1,2000 );
+    scene.add(camera);
+
+    //Settings de la cámara
+    camera.position.set(0, 4, 25);
+
+    // Añadiendo los OrbitControls
+    var controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+
+
+ 
+
+// Espacio para colocar los objetos
+
+///  💫LUCES
+
+
+
+//OBJETOS  
+
+
+
+
+//🎰🎰Rendering y animación
+    requestAnimationFrame(render);
+    function render() {
+    //🪄🪄 Animación - 
+
+
+
+
+
+    //🎮🎮Actualización del OrbitControls para generar la suavidad de movimiento
+    controls.update();
+    //Llamado para renderizar y volver a llamar a la misma función (render)
+    renderer.render(scene, camera);
+    requestAnimationFrame(render);
+    }
+</script>
+
+    <audio id="musicaFondo" autoplay loop preload="auto">
+        <source src="./audios/inicio_juego.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        var musica = document.getElementById("musicaFondo");
+        musica.volume = 0.25;
+
+        // Intentar reproducir automáticamente
+        musica.play().catch(function() {
+            // Si el navegador lo bloquea, iniciar con el primer clic
+            document.addEventListener("click", function() {
+                musica.play();
+            }, { once: true });
+        });
+    </script>
+    
+</body>
+</html>

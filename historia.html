@@ -1,0 +1,810 @@
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+    <title>Historia | Lost Realms</title>
+    <link rel="icon" href="./assets/logo.png">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+       html, body {
+            margin: 0;
+            min-height: 100%;
+            background-color: #08051e;
+        }
+
+        body {
+            min-height: 100vh;
+            overflow-x: hidden;
+            color: white;
+            font-family: Georgia, serif;
+        }
+
+        /* ESCENA THREE.JS */
+        #myCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        /* INTERFAZ */
+        #interfaz {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            min-height: 100vh;
+            padding: 25px 35px 80px;
+            background:
+                radial-gradient(
+                    ellipse at center,
+                    rgba(33,16,76,0.78) 0%,
+                    rgba(12,6,43,0.84) 65%,
+                    rgba(8,5,30,0.90) 100%
+                );
+            background-attachment: fixed;
+        }
+
+        /* TITULO */
+        .titulo-historia {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .titulo-historia h1 {
+            margin: 10px 0;
+            font-size: clamp(35px,4vw,65px);
+            color: #e2a2ff;
+            text-shadow: 0 0 15px #a43cff;
+            letter-spacing: 3px;
+        }
+
+        .titulo-historia p {
+            color: #d99aff;
+            font-size: clamp(14px,1.5vw,21px);
+            margin: 8px 0;
+        }
+
+        /* CONTENEDOR DE LA HISTORIA */
+        .contenedor-historia {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            max-width: 1050px;
+            margin: 0 auto;
+        }
+
+        .panel-historia {
+            width: 100%;
+            min-height: 420px;
+            padding: 35px;
+
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            align-items: center;
+            gap: 25px;
+
+            background: rgba(17,9,48,0.72);
+            border: 1px solid rgba(195,119,255,0.55);
+            border-radius: 20px;
+
+            box-shadow:
+                0 0 20px rgba(164,60,255,0.20),
+                inset 0 0 20px rgba(164,60,255,0.08);
+        }
+
+        /* TEXTO */
+        .texto-historia {
+            min-width: 0;
+        }
+
+        .numero-capitulo {
+            color: #c98aff;
+            font-size: 14px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .texto-historia h2 {
+            color: #e2a2ff;
+            font-size: clamp(25px,3vw,36px);
+            margin: 15px 0 20px;
+            text-shadow: 0 0 10px rgba(164,60,255,0.5);
+        }
+
+        .texto-historia p {
+            color: #eee4ff;
+            font-size: 17px;
+            line-height: 1.8;
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        /* ELEMENTO VISUAL */
+        .visual-historia {
+            min-height: 280px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+       
+        /* ELEMENTO VISUAL */
+        .visual-historia {
+            min-height: 320px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            position: relative;
+        }
+
+        /* ANILLOS EXTERIORES */
+        .circulo-magico {
+            width: 220px;
+            height: 220px;
+            border: 1px solid rgba(217,154,255,0.55);
+            border-radius: 50%;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            position: relative;
+
+            box-shadow:
+                0 0 25px rgba(164,60,255,0.25),
+                inset 0 0 25px rgba(164,60,255,0.15);
+        }
+
+        .circulo-magico::before {
+            content: "";
+            position: absolute;
+            inset: 15px;
+            border: 1px dashed rgba(217,154,255,0.6);
+            border-radius: 50%;
+        }
+
+        /* ESFERA CENTRAL */
+        .esfera-esencia {
+            width: 95px;
+            height: 95px;
+            border-radius: 50%;
+
+            background: radial-gradient(
+                circle at 35% 30%,
+                #ffffff 0%,
+                #eac5ff 15%,
+                #bd75ff 40%,
+                #7135b8 70%,
+                #32105c 100%
+            );
+
+            box-shadow:
+                0 0 15px #e2a2ff,
+                0 0 35px #a43cff,
+                0 0 65px rgba(164,60,255,0.7);
+
+            position: relative;
+            z-index: 2;
+
+            animation: latido 3s ease-in-out infinite;
+        }
+
+        /* BRILLO INTERIOR */
+        .brillo-esencia {
+            position: absolute;
+            width: 25px;
+            height: 25px;
+            background: white;
+            border-radius: 50%;
+            top: 18px;
+            left: 20px;
+            filter: blur(8px);
+            opacity: 0.9;
+        }
+
+        /* ANILLOS INTERNOS */
+        .orbita {
+            position: absolute;
+            border: 1px solid rgba(226,162,255,0.7);
+            border-radius: 50%;
+        }
+
+        .orbita-1 {
+            width: 130px;
+            height: 130px;
+            transform: rotate(35deg);
+        }
+
+        .orbita-2 {
+            width: 155px;
+            height: 80px;
+            transform: rotate(-35deg);
+        }
+
+        /* PARTÍCULAS */
+        .particula {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 0 12px #e2a2ff;
+            position: absolute;
+        }
+
+        .particula-1 {
+            top: 35px;
+            left: 55px;
+        }
+
+        .particula-2 {
+            bottom: 45px;
+            right: 35px;
+        }
+
+        .particula-3 {
+            top: 95px;
+            right: 15px;
+        }
+
+        /* TEXTO */
+        .texto-visual {
+            color: #e2a2ff;
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            text-align: center;
+            text-shadow: 0 0 12px #a43cff;
+        }
+
+        /* ANIMACIÓN */
+        @keyframes latido {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow:
+                    0 0 15px #e2a2ff,
+                    0 0 35px #a43cff,
+                    0 0 65px rgba(164,60,255,0.7);
+            }
+
+            50% {
+                transform: scale(1.08);
+                box-shadow:
+                    0 0 20px #ffffff,
+                    0 0 45px #c98aff,
+                    0 0 80px rgba(164,60,255,0.9);
+            }
+        }
+
+        .texto-visual {
+            z-index: 1;
+            text-align: center;
+            color: #e2a2ff;
+            font-size: 17px;
+            letter-spacing: 3px;
+            text-shadow: 0 0 12px #a43cff;
+        }
+
+        /* NAVEGACIÓN */
+        .navegacion {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .boton-historia {
+            padding: 12px 25px;
+            border: 1px solid #c98aff;
+            border-radius: 25px;
+            background: rgba(95,35,145,0.45);
+            color: white;
+            font-family: Georgia, serif;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .boton-historia:hover {
+            background: #8d42c4;
+            box-shadow: 0 0 15px #a43cff;
+            transform: translateY(-2px);
+        }
+
+        .boton-historia:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* PROGRESO */
+        .progreso {
+            width: 100%;
+            max-width: 350px;
+            margin: 30px auto 0;
+            text-align: center;
+        }
+
+        .barra-fondo {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .barra-avance {
+            width: 20%;
+            height: 100%;
+            background: #d99aff;
+            box-shadow: 0 0 10px #a43cff;
+            transition: width 0.4s;
+        }
+
+        #numero-pagina {
+            color: #d99aff;
+            font-size: 14px;
+            letter-spacing: 2px;
+        }
+
+        /* CAMBIO DE FRAGMENTOS */
+        .fragmento {
+            display: none;
+            animation: aparecer 0.6s ease;
+        }
+
+        .fragmento.activo {
+            display: block;
+        }
+
+        @keyframes aparecer {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ADAPTACIÓN A CELULARES */
+        @media (max-width: 700px) {
+
+            #interfaz {
+                padding: 20px 15px 40px;
+            }
+
+            .titulo-historia {
+                margin-bottom: 20px;
+            }
+
+            .panel-historia {
+                grid-template-columns: 1fr;
+                padding: 25px 20px;
+                gap: 5px;
+            }
+
+            .visual-historia {
+                min-height: 160px;
+            }
+
+            .circulo-magico {
+                width: 140px;
+                height: 140px;
+            }
+
+            .texto-historia p {
+                font-size: 15px;
+            }
+
+            .navegacion {
+                flex-wrap: wrap;
+            }
+
+            .boton-historia {
+                padding: 10px 18px;
+            }
+
+            .circulo-magico {
+                width: 170px;
+                height: 170px;
+            }
+
+            .esfera-esencia {
+                width: 75px;
+                height: 75px;
+            }
+        }
+    </style>
+</head>
+<body>
+    
+<canvas id="myCanvas">
+    <!--El elemento HTML canvas se puede utilizar para dibujar gráficos a través de 
+        secuencias de comandos (por lo general JavaScript ).-->
+</canvas>
+
+<div id="interfaz">
+
+    <header class="titulo-historia">
+        <h1>LOST REALMS</h1>
+        <p>Descubre la historia detrás de los tres mundos</p>
+    </header>
+
+    <main class="contenedor-historia">
+
+        <section class="panel-historia">
+
+            <div class="texto-historia">
+
+                <!-- FRAGMENTO 1 -->
+                <div class="fragmento activo">
+
+                    <span class="numero-capitulo">El comienzo de todo</span>
+
+                    <h2>La Esencia de los Mundos</h2>
+
+                    <p>
+                        El universo de Lost Realms está formado por tres mundos
+                        conectados mediante una fuerza extraordinaria:
+                        la Esencia de los Mundos.
+                    </p>
+
+                    <p>
+                        Esta energía mantiene el equilibrio entre UMBRA,
+                        IGNIS y AERYTH, tres reinos con identidades diferentes,
+                        pero unidos por un mismo origen.
+                    </p>
+
+                </div>
+
+                <!-- FRAGMENTO 2 -->
+                <div class="fragmento">
+
+                    <span class="numero-capitulo">El conflicto</span>
+
+                    <h2>El desequilibrio</h2>
+
+                    <p>
+                        Sin previo aviso, un misterioso acontecimiento altera
+                        la Esencia de los Mundos.
+                    </p>
+
+                    <p>
+                        Quince artefactos, vinculados a la identidad de los
+                        tres reinos, desaparecen de sus lugares de origen
+                        y quedan dispersos entre ellos.
+                    </p>
+
+                    <p>
+                        El equilibrio comienza a debilitarse y algo debe
+                        hacerse para recuperarlo.
+                    </p>
+
+                </div>
+
+                <!-- FRAGMENTO 3 -->
+                <div class="fragmento">
+
+                    <span class="numero-capitulo">Los protagonistas</span>
+
+                    <h2>Los guardianes de la aventura</h2>
+
+                    <p>
+                        Tres personajes se encuentran vinculados con el
+                        destino de estos mundos: Stella, la Guerrera de las
+                        Nubes; Ellowen, una aprendiz guardiana nacida de la
+                        Esencia; y Vesper, el Espíritu de las Sombras.
+                    </p>
+
+                    <p>
+                        Cada uno está relacionado con una parte de este
+                        misterio y tendrá que recorrer los reinos para
+                        recuperar los artefactos perdidos.
+                    </p>
+
+                </div>
+
+                <!-- FRAGMENTO 4 -->
+                <div class="fragmento">
+
+                    <span class="numero-capitulo">La exploración</span>
+
+                    <h2>Un viaje entre tres mundos</h2>
+
+                    <p>
+                        La búsqueda llevará a los protagonistas a través
+                        de UMBRA, un reino envuelto en sombras y misterio;
+                        IGNIS, un mundo donde la naturaleza y la magia
+                        conviven; y AERYTH, un lugar suspendido entre
+                        nubes, sueños e imaginación.
+                    </p>
+
+                    <p>
+                        En cada reino deberán encontrar cinco artefactos
+                        y superar los desafíos que resguardan sus secretos.
+                    </p>
+
+                </div>
+
+                <!-- FRAGMENTO 5 -->
+                <div class="fragmento">
+
+                    <span class="numero-capitulo">Un misterio por descubrir</span>
+
+                    <h2>La aventura apenas comienza</h2>
+
+                    <p>
+                        Recuperar los quince artefactos será solo el comienzo.
+                        Aunque cada hallazgo acercará a los protagonistas
+                        a restablecer el equilibrio, todavía quedan
+                        preguntas sin respuesta.
+                    </p>
+
+                    <p>
+                        ¿Qué provocó el desequilibrio? ¿Por qué los artefactos
+                        terminaron dispersos? ¿Y qué relación existe entre
+                        los tres mundos?
+                    </p>
+
+                    <p>
+                        El destino de Lost Realms está en tus manos.
+                    </p>
+
+                </div>
+
+                <!-- BOTONES -->
+                <div class="navegacion">
+
+                    <button class="boton-historia" id="anterior" disabled> ← Anterior </button>
+
+                    <button class="boton-historia"id="siguiente">Continuar → </button>
+
+                </div>
+
+            </div>
+
+           <div class="visual-historia">
+
+                <div class="circulo-magico">
+
+                    <div class="orbita orbita-1"></div>
+                    <div class="orbita orbita-2"></div>
+
+                    <div class="esfera-esencia">
+                        <div class="brillo-esencia"></div>
+                    </div>
+
+                    <div class="particula particula-1"></div>
+                    <div class="particula particula-2"></div>
+                    <div class="particula particula-3"></div>
+
+                </div>
+
+                <div class="texto-visual">
+                    ESENCIA DE LOS MUNDOS
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- INDICADOR DE AVANCE -->
+    <div class="progreso">
+
+        <div class="barra-fondo">
+            <div class="barra-avance" id="barra-avance"></div>
+        </div>
+
+        <span id="numero-pagina">1 de 5</span>
+
+    </div>
+
+</div>
+
+<!-- Aquí va todo el código de three.js -->
+<!-- script type="importmap" importa las librerías necesarias para three.js-->
+<script type="importmap"> 
+    {
+        "imports": {
+        "three": "https://cdn.skypack.dev/-/three@v0.137.5-HJEdoVYPhjkiJWkt6XIa/dist=es2019,mode=raw/build/three.module.js",
+        "three/OrbitControls": "https://cdn.skypack.dev/-/three@v0.137.5-HJEdoVYPhjkiJWkt6XIa/dist=es2019,mode=raw/examples/jsm/controls/OrbitControls.js"
+    }
+}
+</script>
+<script type="module"> 
+//🗃️🗃️ Mandar llamar a la librería
+    import * as THREE from 'three'; 
+    import {OrbitControls} from 'three/OrbitControls';
+    console.log(OrbitControls);
+    //import {RoundedBoxGeometry} from "./js/RoundedBoxGeometry.js"
+
+//🕹️🕹️ Renderer - Realiza una conexión entre el código y el canvas
+    var renderer = new THREE.WebGLRenderer({
+    canvas: document.getElementById('myCanvas'), antialias: true,
+    });
+    renderer.setPixelRatio(window.decivePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x08051e);
+
+
+// 🎬 Creando nueva escena - Es el espacio donde se colocan los objetos
+    var scene = new THREE.Scene();
+
+//🎥🎥 Agregar una cámara de perspectiva
+    var camera = new THREE.PerspectiveCamera(70,window.innerWidth / window.innerHeight,0.1,2000
+      );
+    scene.add(camera);
+
+    //Settings de la cámara
+    camera.position.set(0, 4, 25);
+
+    // Añadiendo los OrbitControls
+    var controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+ 
+
+// Espacio para colocar los objetos
+
+// ANIMACIÓN
+    function render() {
+
+        controls.update();
+
+        renderer.render(scene, camera);
+
+        requestAnimationFrame(render);
+    }
+
+    render();
+
+
+    // AJUSTAR TAMAÑO DE PANTALLA
+    window.addEventListener('resize', function() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+    });
+
+</script>
+
+
+<!-- NAVEGACIÓN DE LA HISTORIA -->
+<script>
+
+    var fragmentos = document.querySelectorAll('.fragmento');
+
+    var anterior = document.getElementById('anterior');
+    var siguiente = document.getElementById('siguiente');
+
+    var barra = document.getElementById('barra-avance');
+    var numeroPagina = document.getElementById('numero-pagina');
+
+    var paginaActual = 0;
+
+
+    // MOSTRAR FRAGMENTO
+    function mostrarFragmento() {
+
+        fragmentos.forEach(function(fragmento) {
+            fragmento.classList.remove('activo');
+        });
+
+        fragmentos[paginaActual].classList.add('activo');
+
+        numeroPagina.textContent =
+            (paginaActual + 1) + ' de ' + fragmentos.length;
+
+        barra.style.width =
+            ((paginaActual + 1) / fragmentos.length * 100) + '%';
+
+        anterior.disabled = paginaActual === 0;
+
+        if (paginaActual === fragmentos.length - 1) {
+
+            siguiente.textContent = 'Elegir personaje →';
+
+        } else {
+
+            siguiente.textContent = 'Continuar →';
+
+        }
+
+    }
+
+
+    // BOTÓN ANTERIOR
+    anterior.addEventListener('click', function() {
+
+        if (paginaActual > 0) {
+
+            paginaActual--;
+
+            mostrarFragmento();
+
+        }
+
+    });
+
+
+    // BOTÓN SIGUIENTE
+    siguiente.addEventListener('click', function() {
+
+        if (paginaActual < fragmentos.length - 1) {
+
+            paginaActual++;
+
+            mostrarFragmento();
+
+        } else {
+
+            window.location.href = 'Seleccion_Personajes.html';
+
+        }
+
+    });
+
+</script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+//🎰🎰Rendering y animación
+    requestAnimationFrame(render);
+    function render() {
+    //🪄🪄 Animación - 
+
+
+
+
+
+    //🎮🎮Actualización del OrbitControls para generar la suavidad de movimiento
+    controls.update();
+    //Llamado para renderizar y volver a llamar a la misma función (render)
+    renderer.render(scene, camera);
+    requestAnimationFrame(render);
+    }
+</script>
+
+    <audio id="musicaFondo" autoplay loop preload="auto">
+        <source src="./audios/inicio_juego.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        var musica = document.getElementById("musicaFondo");
+        musica.volume = 0.25;
+
+        // Intentar reproducir automáticamente
+        musica.play().catch(function() {
+            // Si el navegador lo bloquea, iniciar con el primer clic
+            document.addEventListener("click", function() {
+                musica.play();
+            }, { once: true });
+        });
+    </script>
+    
+</body>
+</html>
